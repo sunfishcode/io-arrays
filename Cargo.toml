@@ -1,0 +1,34 @@
+[package]
+name = "io-files"
+version = "0.0.0"
+description = "Random-access I/O"
+authors = ["Dan Gohman <dev@sunfishcode.online>"]
+edition = "2018"
+license = "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT"
+keywords = ["io"]
+categories = ["rust-patterns"]
+repository = "https://github.com/sunfishcode/io-files"
+readme = "README.md"
+
+[build-dependencies]
+rustc_version = "0.3.0"
+
+[dependencies]
+io-streams = { git = "https://github.com/sunfishcode/io-streams", branch = "main", optional = true }
+unsafe-io = { version = "0.2.0", features = ["os_pipe"] }
+system-interface = "0.5.1"
+cap-fs-ext = "0.10.0"
+
+[target.'cfg(not(windows))'.dependencies]
+libc = "0.2.81"
+posish = "0.5.6"
+
+[dev-dependencies]
+anyhow = "1.0.38"
+tempfile = "3.2.0"
+
+[features]
+default = []
+
+[badges]
+maintenance = { status = "actively-developed" }
