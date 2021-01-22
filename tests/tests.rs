@@ -2,7 +2,7 @@
 #![cfg_attr(write_all_vectored, feature(write_all_vectored))]
 
 use cap_tempfile::{tempdir, TempDir};
-use io_files::{FileReader, FileWriter, MinimalFile, ReadAt, WriteAt};
+use io_files::{FileEditor, FileReader, FileWriter, MinimalFile, ReadAt, WriteAt};
 use std::io::{Read, Write};
 
 #[allow(unused)]
@@ -68,5 +68,15 @@ fn test_bytes() -> anyhow::Result<()> {
     let mut buf = vec![0_u8; 4];
     reader.read_exact_at(&mut buf, 3)?;
     assert_eq!(buf, b"defg");
+    Ok(())
+}
+
+#[test]
+fn test_anonymous() -> anyhow::Result<()> {
+    let editor = FileEditor::anonymous()?;
+    editor.write_all_at(b"0123456789", 5)?;
+    let mut buf = vec![0_u8; 4];
+    editor.read_exact_at(&mut buf, 8)?;
+    assert_eq!(buf, b"3456");
     Ok(())
 }

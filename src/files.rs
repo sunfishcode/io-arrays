@@ -229,29 +229,9 @@ impl FileReader {
     /// in the manner of a file.
     #[inline]
     pub fn bytes(bytes: &[u8]) -> io::Result<Self> {
-        // On Linux, use `memfd_create`.
-        #[cfg(any(target_os = "android", target_os = "linux"))]
-        {
-            let flags = libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING;
-            let name = b"FileReader::bytes\0".as_ptr() as *const libc::c_char;
-            let fd = unsafe { memfd_create(name, flags) };
-            if fd == -1 {
-                return Err(io::Error::last_os_error());
-            }
-            let file = UnsafeFile::from_raw_fd(fd);
-            file.as_file_view().write_all(bytes)?;
-            Ok(Self { unsafe_file: file })
-        }
-
-        // Otherwise, use a temporary file.
-        #[cfg(not(any(target_os = "android", target_os = "linux")))]
-        {
-            let file = tempfile::tempfile()?;
-            file.write_all(bytes)?;
-            Ok(Self {
-                unsafe_file: file.into_unsafe_file(),
-            })
-        }
+        let file = create_anonymous()?;
+        file.as_file_view().write_all(bytes)?;
+        Ok(Self { unsafe_file: file })
     }
 }
 
@@ -302,6 +282,14 @@ impl FileEditor {
         Self {
             unsafe_file: file.into_unsafe_file(),
         }
+    }
+
+    /// Create a temporary anonymous resource which can be accessed in the
+    /// manner of a file.
+    #[inline]
+    pub fn anonymous() -> io::Result<Self> {
+        let file = create_anonymous()?;
+        Ok(Self { unsafe_file: file })
     }
 }
 
@@ -382,6 +370,25 @@ impl AsRawHandle for FileEditor {
     fn as_raw_handle(&self) -> RawHandle {
         self.unsafe_file.as_raw_handle()
     }
+}
+
+// On Linux, use `memfd_create`.
+#[cfg(any(target_os = "android", target_os = "linux"))]
+fn create_anonymous() -> io::Result<UnsafeFile> {
+    let flags = libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING;
+    let name = b"io_files anonymous file\0".as_ptr() as *const libc::c_char;
+    let fd = unsafe { memfd_create(name, flags) };
+    if fd == -1 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(UnsafeFile::from_raw_fd(fd))
+}
+
+// Otherwise, use a temporary file.
+#[cfg(not(any(target_os = "android", target_os = "linux")))]
+fn create_anonymous() -> io::Result<UnsafeFile> {
+    let file = tempfile::tempfile()?;
+    Ok(file.into_unsafe_file())
 }
 
 #[cfg(any(target_os = "android", target_os = "linux"))]
