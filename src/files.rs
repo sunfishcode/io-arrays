@@ -8,7 +8,6 @@ use std::os::wasi::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::{
-    fs::File,
     io::{self, IoSlice, IoSliceMut},
 };
 use system_interface::fs::FileIoExt;
@@ -219,7 +218,7 @@ impl FileReader {
     /// Convert a `File` into a `FileReader`.
     #[inline]
     #[must_use]
-    pub fn file(file: File) -> Self {
+    pub fn file<IUF: IntoUnsafeFile>(file: IUF) -> Self {
         Self {
             unsafe_file: file.into_unsafe_file(),
         }
@@ -234,7 +233,12 @@ impl FileWriter {
     /// [append mode]: https://doc.rust-lang.org/stable/std/fs/struct.OpenOptions.html#method.append
     #[inline]
     #[must_use]
-    pub fn file(file: File) -> Self {
+    pub fn file<IUF: IntoUnsafeFile>(file: IUF) -> Self {
+        Self::_file(file.into_unsafe_file())
+    }
+
+    #[inline]
+    fn _file(file: UnsafeFile) -> Self {
         // On Linux, `pwrite` on a file opened with `O_APPEND` writes to the
         // end of the file, ignoring the offset.
         #[cfg(not(windows))]
@@ -257,7 +261,7 @@ impl FileWriter {
         }
 
         Self {
-            unsafe_file: file.into_unsafe_file(),
+            unsafe_file: file,
         }
     }
 }
@@ -266,7 +270,7 @@ impl FileEditor {
     /// Convert a `File` into a `FileEditor`.
     #[inline]
     #[must_use]
-    pub fn file(file: File) -> Self {
+    pub fn file<IUF: IntoUnsafeFile>(file: IUF) -> Self {
         Self {
             unsafe_file: file.into_unsafe_file(),
         }
