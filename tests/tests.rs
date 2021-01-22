@@ -1,11 +1,9 @@
 #![cfg_attr(can_vector, feature(can_vector))]
 #![cfg_attr(write_all_vectored, feature(write_all_vectored))]
 
-use io_files::{FileReader, FileWriter, MinimalFile, ReadAt, WriteAt};
-use std::{
-    io::{Read, Write},
-};
 use cap_tempfile::{tempdir, TempDir};
+use io_files::{FileReader, FileWriter, MinimalFile, ReadAt, WriteAt};
+use std::io::{Read, Write};
 
 #[allow(unused)]
 fn tmpdir() -> TempDir {

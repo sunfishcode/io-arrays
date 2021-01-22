@@ -9,10 +9,10 @@ use std::os::wasi::io::{AsRawFd, RawFd};
 use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::{
     fs,
-    io::{self, IoSlice, IoSliceMut, Read, Write, Seek},
+    io::{self, IoSlice, IoSliceMut, Read, Seek, Write},
 };
 use system_interface::fs::FileIoExt;
-use unsafe_io::{AsUnsafeFile, IntoUnsafeFile, UnsafeFile, FromUnsafeFile};
+use unsafe_io::{AsUnsafeFile, FromUnsafeFile, IntoUnsafeFile, UnsafeFile};
 #[cfg(feature = "io-streams")]
 use {
     crate::file_streamer::FileStreamer,
@@ -248,7 +248,9 @@ impl FileReader {
         {
             let file = tempfile::tempfile()?;
             file.write_all(bytes)?;
-            Ok(Self { unsafe_file: file.into_unsafe_file() })
+            Ok(Self {
+                unsafe_file: file.into_unsafe_file(),
+            })
         }
     }
 }
@@ -288,9 +290,7 @@ impl FileWriter {
             );
         }
 
-        Self {
-            unsafe_file: file,
-        }
+        Self { unsafe_file: file }
     }
 }
 
