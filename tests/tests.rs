@@ -63,3 +63,12 @@ fn test_streaming_read() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_bytes() -> anyhow::Result<()> {
+    let reader = FileReader::bytes(b"abcdefghij")?;
+    let mut buf = vec![0_u8; 4];
+    reader.read_exact_at(&mut buf, 3)?;
+    assert_eq!(buf, b"defg");
+    Ok(())
+}

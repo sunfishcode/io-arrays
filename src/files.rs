@@ -8,10 +8,11 @@ use std::os::wasi::io::{AsRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::{
+    fs,
     io::{self, IoSlice, IoSliceMut, Read, Write, Seek},
 };
 use system_interface::fs::FileIoExt;
-use unsafe_io::{AsUnsafeFile, IntoUnsafeFile, UnsafeFile};
+use unsafe_io::{AsUnsafeFile, IntoUnsafeFile, UnsafeFile, FromUnsafeFile};
 #[cfg(feature = "io-streams")]
 use {
     crate::file_streamer::FileStreamer,
@@ -223,6 +224,33 @@ impl FileReader {
             unsafe_file: file.into_unsafe_file(),
         }
     }
+
+    /// Copy a slice of bytes into a memory buffer to allow it to be accessed
+    /// in the manner of a file.
+    #[inline]
+    pub fn bytes(bytes: &[u8]) -> io::Result<Self> {
+        // On Linux, use `memfd_create`.
+        #[cfg(any(target_os = "android", target_os = "linux"))]
+        {
+            let flags = libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING;
+            let name = b"FileReader::bytes\0".as_ptr() as *const libc::c_char;
+            let fd = unsafe { memfd_create(name, flags) };
+            if fd == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            let file = UnsafeFile::from_raw_fd(fd);
+            file.as_file_view().write_all(bytes)?;
+            Ok(Self { unsafe_file: file })
+        }
+
+        // Otherwise, use a temporary file.
+        #[cfg(not(any(target_os = "android", target_os = "linux")))]
+        {
+            let file = tempfile::tempfile()?;
+            file.write_all(bytes)?;
+            Ok(Self { unsafe_file: file.into_unsafe_file() })
+        }
+    }
 }
 
 impl FileWriter {
@@ -274,6 +302,27 @@ impl FileEditor {
         Self {
             unsafe_file: file.into_unsafe_file(),
         }
+    }
+}
+
+impl Drop for FileReader {
+    #[inline]
+    fn drop(&mut self) {
+        drop(unsafe { fs::File::from_unsafe_file(self.unsafe_file) })
+    }
+}
+
+impl Drop for FileWriter {
+    #[inline]
+    fn drop(&mut self) {
+        drop(unsafe { fs::File::from_unsafe_file(self.unsafe_file) })
+    }
+}
+
+impl Drop for FileEditor {
+    #[inline]
+    fn drop(&mut self) {
+        drop(unsafe { fs::File::from_unsafe_file(self.unsafe_file) })
     }
 }
 
@@ -333,4 +382,9 @@ impl AsRawHandle for FileEditor {
     fn as_raw_handle(&self) -> RawHandle {
         self.unsafe_file.as_raw_handle()
     }
+}
+
+#[cfg(any(target_os = "android", target_os = "linux"))]
+unsafe fn memfd_create(name: *const libc::c_char, flags: libc::c_uint) -> libc::c_int {
+    libc::syscall(libc::SYS_memfd_create, name, flags) as libc::c_int
 }
