@@ -21,17 +21,8 @@ contain a single file descriptor (and implement [`AsRawFd`]), plus any
 resources needed to safely hold the file descriptor live. On Windows, they
 contain a single file handle (and implement [`AsRawHandle`]).
 
-TODO:
- - `FileStreamReader` and `FileStreamWriter`
- - `copy`
- - `move_to_file`?
- - `mmap`?
- - `sync_file_range`?
-
 [`FileReader`]: https://docs.rs/io-files/latest/io_files/struct.FileReader.html
 [`FileWriter`]: https://docs.rs/io-files/latest/io_files/struct.FileWriter.html
 [`FileEditor`]: https://docs.rs/io-files/latest/io_files/struct.FileEditor.html
 [`AsRawFd`]: https://doc.rust-lang.org/std/os/unix/io/trait.AsRawFd.html
 [`AsRawHandle`]: https://doc.rust-lang.org/std/os/windows/io/trait.AsRawHandle.html
-[`mmap`]: https://man7.org/linux/man-pages/man2/mmap.2.html
-[`memfd`]: https://man7.org/linux/man-pages/man2/memfd_create.2.html

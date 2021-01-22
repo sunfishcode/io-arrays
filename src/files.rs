@@ -1,3 +1,4 @@
+use crate::borrow_streamer::BorrowStreamer;
 #[cfg(unix)]
 use std::os::unix::{
     fs::MetadataExt,
@@ -5,11 +6,9 @@ use std::os::unix::{
 };
 #[cfg(target_os = "wasi")]
 use std::os::wasi::io::{AsRawFd, RawFd};
-#[cfg(windows)]
-use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::{
     fs,
-    io::{self, IoSlice, IoSliceMut, Read, Seek, Write},
+    io::{self, copy, IoSlice, IoSliceMut, Read, Seek, Write},
 };
 use system_interface::fs::FileIoExt;
 use unsafe_io::{AsUnsafeFile, FromUnsafeFile, IntoUnsafeFile, UnsafeFile};
@@ -19,6 +18,11 @@ use {
     cap_fs_ext::{OpenOptions, Reopen},
     io_streams::StreamReader,
     std::io::SeekFrom,
+};
+#[cfg(windows)]
+use {
+    crate::windows,
+    std::os::windows::io::{AsRawHandle, RawHandle},
 };
 
 pub use system_interface::fs::Advice;
@@ -73,7 +77,7 @@ pub trait MinimalFile: AsUnsafeFile {
     /// Announce the expected access pattern of the data at the given offset.
     #[inline]
     fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
-        self.as_file_view().advise(offset, len, advice)
+        <fs::File as FileIoExt>::advise(&self.as_file_view(), offset, len, advice)
     }
 }
 
@@ -88,7 +92,7 @@ pub trait ReadAt: MinimalFile {
     /// [`std::os::unix::fs::FileExt::read_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.read_at
     #[inline]
     fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
-        self.as_file_view().read_at(buf, offset)
+        <fs::File as FileIoExt>::read_at(&self.as_file_view(), buf, offset)
     }
 
     /// Reads the exact number of byte required to fill buf from the given
@@ -101,25 +105,37 @@ pub trait ReadAt: MinimalFile {
     /// [`std::os::unix::fs::FileExt::read_exact_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.read_exact_at
     #[inline]
     fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
-        self.as_file_view().read_exact_at(buf, offset)
+        <fs::File as FileIoExt>::read_exact_at(&self.as_file_view(), buf, offset)
     }
 
     /// Is to `read_vectored` what `read_at` is to `read`.
     #[inline]
     fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
-        self.as_file_view().read_vectored_at(bufs, offset)
+        <fs::File as FileIoExt>::read_vectored_at(&self.as_file_view(), bufs, offset)
     }
 
     /// Is to `read_exact_vectored` what `read_exact_at` is to `read_exact`.
     #[inline]
     fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
-        self.as_file_view().read_exact_vectored_at(bufs, offset)
+        <fs::File as FileIoExt>::read_exact_vectored_at(&self.as_file_view(), bufs, offset)
     }
 
     /// Determines if `Self` has an efficient `read_vectored_at` implementation.
     #[inline]
     fn is_read_vectored_at(&self) -> bool {
-        false
+        <fs::File as FileIoExt>::is_read_vectored_at(&self.as_file_view())
+    }
+
+    /// Read all bytes until EOF in this source, placing them into `buf`.
+    #[inline]
+    fn read_to_end_at(&self, buf: &mut Vec<u8>, offset: u64) -> io::Result<usize> {
+        <fs::File as FileIoExt>::read_to_end_at(&self.as_file_view(), buf, offset)
+    }
+
+    /// Read all bytes until EOF in this source, appending them to `buf`.
+    #[inline]
+    fn read_to_string_at(&self, buf: &mut String, offset: u64) -> io::Result<usize> {
+        <fs::File as FileIoExt>::read_to_string_at(&self.as_file_view(), buf, offset)
     }
 
     /// Create a `StreamReader` which reads from the file at the given offset.
@@ -153,7 +169,7 @@ pub trait WriteAt: MinimalFile {
     /// [`std::os::unix::fs::FileExt::write_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.write_at
     #[inline]
     fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
-        self.as_file_view().write_at(buf, offset)
+        <fs::File as FileIoExt>::write_at(&self.as_file_view(), buf, offset)
     }
 
     /// Attempts to write an entire buffer starting from a given offset.
@@ -165,32 +181,48 @@ pub trait WriteAt: MinimalFile {
     /// [`std::os::unix::fs::FileExt::write_all_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.write_all_at
     #[inline]
     fn write_all_at(&self, buf: &[u8], offset: u64) -> io::Result<()> {
-        self.as_file_view().write_all_at(buf, offset)
+        <fs::File as FileIoExt>::write_all_at(&self.as_file_view(), buf, offset)
     }
 
     /// Is to `write_vectored` what `write_at` is to `write`.
     #[inline]
     fn write_vectored_at(&self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
-        self.as_file_view().write_vectored_at(bufs, offset)
+        <fs::File as FileIoExt>::write_vectored_at(&self.as_file_view(), bufs, offset)
     }
 
     /// Is to `write_all_vectored` what `write_all_at` is to `write_all`.
     #[inline]
     fn write_all_vectored_at(&self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
-        self.as_file_view().write_all_vectored_at(bufs, offset)
+        <fs::File as FileIoExt>::write_all_vectored_at(&self.as_file_view(), bufs, offset)
     }
 
     /// Allocate space in the file, increasing the file size as needed, and
     /// ensuring that there are no holes under the given range.
     #[inline]
     fn allocate(&self, offset: u64, len: u64) -> io::Result<()> {
-        self.as_file_view().allocate(offset, len)
+        <fs::File as FileIoExt>::allocate(&self.as_file_view(), offset, len)
     }
 
     /// Determines if `Self` has an efficient `write_vectored_at` implementation.
     #[inline]
     fn is_write_vectored_at(&self) -> bool {
-        false
+        <fs::File as FileIoExt>::is_write_vectored_at(&self.as_file_view())
+    }
+
+    /// Copy `len` bytes from `input` at `input_offset` to `self` at `offset`.
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        let output_view = self.as_file_view();
+        let input_view = input.as_file_view();
+        let mut output_streamer = BorrowStreamer::new(&output_view, offset);
+        let input_streamer = BorrowStreamer::new(&input_view, input_offset);
+        copy(&mut input_streamer.take(len), &mut output_streamer)
     }
 }
 
@@ -200,28 +232,28 @@ pub trait EditAt: ReadAt + WriteAt {}
 /// A random-access input source.
 #[derive(Debug)]
 pub struct FileReader {
-    unsafe_file: UnsafeFile,
+    file: fs::File,
 }
 
 /// A random-access output source.
 #[derive(Debug)]
 pub struct FileWriter {
-    unsafe_file: UnsafeFile,
+    file: fs::File,
 }
 
 /// A random-access input and output source.
 #[derive(Debug)]
 pub struct FileEditor {
-    unsafe_file: UnsafeFile,
+    file: fs::File,
 }
 
 impl FileReader {
     /// Convert a `File` into a `FileReader`.
     #[inline]
     #[must_use]
-    pub fn file<IUF: IntoUnsafeFile + Read + Write + Seek>(file: IUF) -> Self {
+    pub fn file<Filelike: IntoUnsafeFile + Read + Seek>(filelike: Filelike) -> Self {
         Self {
-            unsafe_file: file.into_unsafe_file(),
+            file: fs::File::from_filelike(filelike),
         }
     }
 
@@ -229,9 +261,11 @@ impl FileReader {
     /// in the manner of a file.
     #[inline]
     pub fn bytes(bytes: &[u8]) -> io::Result<Self> {
-        let file = create_anonymous()?;
-        file.as_file_view().write_all(bytes)?;
-        Ok(Self { unsafe_file: file })
+        let unsafe_file = create_anonymous()?;
+        unsafe_file.as_file_view().write_all(bytes)?;
+        Ok(Self {
+            file: unsafe { fs::File::from_unsafe_file(unsafe_file) },
+        })
     }
 }
 
@@ -243,12 +277,12 @@ impl FileWriter {
     /// [append mode]: https://doc.rust-lang.org/stable/std/fs/struct.OpenOptions.html#method.append
     #[inline]
     #[must_use]
-    pub fn file<IUF: IntoUnsafeFile + Read + Write + Seek>(file: IUF) -> Self {
-        Self::_file(file.into_unsafe_file())
+    pub fn file<Filelike: IntoUnsafeFile + Write + Seek>(filelike: Filelike) -> Self {
+        Self::_file(fs::File::from_filelike(filelike))
     }
 
     #[inline]
-    fn _file(file: UnsafeFile) -> Self {
+    fn _file(file: fs::File) -> Self {
         // On Linux, `pwrite` on a file opened with `O_APPEND` writes to the
         // end of the file, ignoring the offset.
         #[cfg(not(windows))]
@@ -270,7 +304,7 @@ impl FileWriter {
             );
         }
 
-        Self { unsafe_file: file }
+        Self { file }
     }
 }
 
@@ -278,9 +312,9 @@ impl FileEditor {
     /// Convert a `File` into a `FileEditor`.
     #[inline]
     #[must_use]
-    pub fn file<IUF: IntoUnsafeFile + Read + Write + Seek>(file: IUF) -> Self {
+    pub fn file<Filelike: IntoUnsafeFile + Read + Write + Seek>(filelike: Filelike) -> Self {
         Self {
-            unsafe_file: file.into_unsafe_file(),
+            file: fs::File::from_filelike(filelike),
         }
     }
 
@@ -289,28 +323,9 @@ impl FileEditor {
     #[inline]
     pub fn anonymous() -> io::Result<Self> {
         let file = create_anonymous()?;
-        Ok(Self { unsafe_file: file })
-    }
-}
-
-impl Drop for FileReader {
-    #[inline]
-    fn drop(&mut self) {
-        drop(unsafe { fs::File::from_unsafe_file(self.unsafe_file) })
-    }
-}
-
-impl Drop for FileWriter {
-    #[inline]
-    fn drop(&mut self) {
-        drop(unsafe { fs::File::from_unsafe_file(self.unsafe_file) })
-    }
-}
-
-impl Drop for FileEditor {
-    #[inline]
-    fn drop(&mut self) {
-        drop(unsafe { fs::File::from_unsafe_file(self.unsafe_file) })
+        Ok(Self {
+            file: unsafe { fs::File::from_unsafe_file(file) },
+        })
     }
 }
 
@@ -318,17 +333,158 @@ impl MinimalFile for FileReader {}
 impl MinimalFile for FileWriter {}
 impl MinimalFile for FileEditor {}
 
+// We can't use Windows' `read_at` or `write_at` here because it isn't able to
+// extend the length of a file we can't `reopen` (such as temporary files).
+// However, while `FileIoExt` can't use `seek_write` because it mutates the
+// current position, here we *can* use plain `seek_write` because `FileEditor`
+// doesn't expose the current position.
+#[cfg(not(windows))]
 impl ReadAt for FileReader {}
+#[cfg(not(windows))]
 impl ReadAt for FileEditor {}
-
+#[cfg(not(windows))]
 impl WriteAt for FileWriter {}
+#[cfg(not(windows))]
 impl WriteAt for FileEditor {}
+
+impl MinimalFile for fs::File {}
+impl ReadAt for fs::File {}
+impl WriteAt for fs::File {}
+
+#[cfg(feature = "cap-std")]
+impl MinimalFile for cap_std::fs::File {}
+#[cfg(feature = "cap-std")]
+impl ReadAt for cap_std::fs::File {}
+#[cfg(feature = "cap-std")]
+impl WriteAt for cap_std::fs::File {}
+
+#[cfg(feature = "cap-async-std")]
+impl MinimalFile for cap_async_std::fs::File {}
+#[cfg(feature = "cap-async-std")]
+impl ReadAt for cap_async_std::fs::File {}
+#[cfg(feature = "cap-async-std")]
+impl WriteAt for cap_async_std::fs::File {}
+
+#[cfg(feature = "async-std")]
+impl MinimalFile for async_std::fs::File {}
+#[cfg(feature = "async-std")]
+impl ReadAt for async_std::fs::File {}
+#[cfg(feature = "async-std")]
+impl WriteAt for async_std::fs::File {}
+
+#[cfg(windows)]
+impl ReadAt for FileReader {
+    #[inline]
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
+        windows::read_at(&self.as_file_view(), buf, offset)
+    }
+
+    fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
+        windows::read_exact_at(&self.as_file_view(), buf, offset)
+    }
+
+    fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
+        windows::read_vectored_at(&self.as_file_view(), bufs, offset)
+    }
+
+    fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
+        windows::read_exact_vectored_at(&self.as_file_view(), bufs, offset)
+    }
+
+    fn is_read_vectored_at(&self) -> bool {
+        windows::is_read_vectored_at(&self.as_file_view())
+    }
+}
+
+#[cfg(windows)]
+impl ReadAt for FileEditor {
+    #[inline]
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
+        windows::read_at(&self.as_file_view(), buf, offset)
+    }
+
+    fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
+        windows::read_exact_at(&self.as_file_view(), buf, offset)
+    }
+
+    fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
+        windows::read_vectored_at(&self.as_file_view(), bufs, offset)
+    }
+
+    fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
+        windows::read_exact_vectored_at(&self.as_file_view(), bufs, offset)
+    }
+
+    fn is_read_vectored_at(&self) -> bool {
+        windows::is_read_vectored_at(&self.as_file_view())
+    }
+}
+
+#[cfg(windows)]
+impl WriteAt for FileWriter {
+    #[inline]
+    fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        windows::write_at(&self.as_file_view(), buf, offset)
+    }
+
+    fn write_all_at(&self, buf: &[u8], offset: u64) -> io::Result<()> {
+        windows::write_all_at(&self.as_file_view(), buf, offset)
+    }
+
+    fn write_vectored_at(&self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        windows::write_vectored_at(&self.as_file_view(), bufs, offset)
+    }
+
+    fn write_all_vectored_at(&self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        windows::write_all_vectored_at(&self.as_file_view(), bufs, offset)
+    }
+
+    #[inline]
+    fn allocate(&self, offset: u64, len: u64) -> io::Result<()> {
+        windows::allocate(&self.as_file_view(), offset, len)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        windows::is_write_vectored_at(&self.as_file_view())
+    }
+}
+
+#[cfg(windows)]
+impl WriteAt for FileEditor {
+    #[inline]
+    fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        windows::write_at(&self.as_file_view(), buf, offset)
+    }
+
+    fn write_all_at(&self, buf: &[u8], offset: u64) -> io::Result<()> {
+        windows::write_all_at(&self.as_file_view(), buf, offset)
+    }
+
+    fn write_vectored_at(&self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        windows::write_vectored_at(&self.as_file_view(), bufs, offset)
+    }
+
+    fn write_all_vectored_at(&self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        windows::write_all_vectored_at(&self.as_file_view(), bufs, offset)
+    }
+
+    #[inline]
+    fn allocate(&self, offset: u64, len: u64) -> io::Result<()> {
+        windows::allocate(&self.as_file_view(), offset, len)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        windows::is_write_vectored_at(&self.as_file_view())
+    }
+}
 
 #[cfg(not(windows))]
 impl AsRawFd for FileReader {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
-        self.unsafe_file.as_raw_fd()
+        self.file.as_raw_fd()
     }
 }
 
@@ -336,7 +492,7 @@ impl AsRawFd for FileReader {
 impl AsRawHandle for FileReader {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
-        self.unsafe_file.as_raw_handle()
+        self.file.as_raw_handle()
     }
 }
 
@@ -344,7 +500,7 @@ impl AsRawHandle for FileReader {
 impl AsRawFd for FileWriter {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
-        self.unsafe_file.as_raw_fd()
+        self.file.as_raw_fd()
     }
 }
 
@@ -352,7 +508,7 @@ impl AsRawFd for FileWriter {
 impl AsRawHandle for FileWriter {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
-        self.unsafe_file.as_raw_handle()
+        self.file.as_raw_handle()
     }
 }
 
@@ -360,7 +516,7 @@ impl AsRawHandle for FileWriter {
 impl AsRawFd for FileEditor {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
-        self.unsafe_file.as_raw_fd()
+        self.file.as_raw_fd()
     }
 }
 
@@ -368,7 +524,7 @@ impl AsRawFd for FileEditor {
 impl AsRawHandle for FileEditor {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
-        self.unsafe_file.as_raw_handle()
+        self.file.as_raw_handle()
     }
 }
 

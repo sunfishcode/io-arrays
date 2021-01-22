@@ -1,27 +1,23 @@
-use crate::{ReadAt, WriteAt};
 use std::{
     fmt::Arguments,
-    io::{self, IoSlice, IoSliceMut, Read, Write},
+    fs::File,
+    io::{self, IoSlice, IoSliceMut, Read, Seek, SeekFrom, Write},
 };
-use system_interface::io::Peek;
+use system_interface::{fs::FileIoExt, io::Peek};
 
-/// In POSIX, `dup` produces a new file descriptor which shares a file
-/// description with the original file descriptor, and the file
-/// description includes the current position. In order to have independent
-/// streams through a file, we track our own current position.
-pub(crate) struct FileStreamer<File> {
-    inner: File,
+pub(crate) struct BorrowStreamer<'file> {
+    inner: &'file File,
     pos: u64,
 }
 
-impl<File> FileStreamer<File> {
+impl<'file> BorrowStreamer<'file> {
     #[inline]
-    pub(crate) fn new(inner: File, pos: u64) -> Self {
+    pub(crate) fn new(inner: &'file File, pos: u64) -> Self {
         Self { inner, pos }
     }
 }
 
-impl<File: ReadAt> Read for FileStreamer<File> {
+impl<'file> Read for BorrowStreamer<'file> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -49,7 +45,7 @@ impl<File: ReadAt> Read for FileStreamer<File> {
     #[cfg(can_vector)]
     #[inline]
     fn is_read_vectored(&self) -> bool {
-        self.inner.is_read_vectored_at()
+        self.inner.is_read_vectored()
     }
 
     #[inline]
@@ -86,14 +82,14 @@ impl<File: ReadAt> Read for FileStreamer<File> {
     }
 }
 
-impl<File: ReadAt> Peek for FileStreamer<File> {
+impl<'file> Peek for BorrowStreamer<'file> {
     #[inline]
     fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read_at(buf, self.pos)
     }
 }
 
-impl<File: WriteAt> Write for FileStreamer<File> {
+impl<'file> Write for BorrowStreamer<'file> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -107,7 +103,7 @@ impl<File: WriteAt> Write for FileStreamer<File> {
 
     #[inline]
     fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+        self.inner.flush()
     }
 
     #[inline]
@@ -126,7 +122,7 @@ impl<File: WriteAt> Write for FileStreamer<File> {
     #[cfg(can_vector)]
     #[inline]
     fn is_write_vectored(&self) -> bool {
-        self.inner.is_write_vectored_at()
+        self.inner.is_write_vectored()
     }
 
     #[inline]
@@ -159,5 +155,24 @@ impl<File: WriteAt> Write for FileStreamer<File> {
     fn write_fmt(&mut self, fmt: Arguments) -> io::Result<()> {
         // TODO: Use `to_str` when it's stablized: https://github.com/rust-lang/rust/issues/74442
         self.write_all(fmt.to_string().as_bytes())
+    }
+}
+
+impl<'file> Seek for BorrowStreamer<'file> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        match pos {
+            SeekFrom::Start(offset) => self.pos = offset,
+            SeekFrom::End(offset) => {
+                self.pos = (self.inner.metadata()?.len() as i128 - offset as i128)
+                    .max(i128::from(u64::MIN))
+                    .min(i128::from(u64::MAX)) as u64
+            }
+            SeekFrom::Current(offset) => {
+                self.pos = (self.pos as i128 + offset as i128)
+                    .max(i128::from(u64::MIN))
+                    .min(i128::from(u64::MAX)) as u64
+            }
+        }
+        Ok(self.pos)
     }
 }
