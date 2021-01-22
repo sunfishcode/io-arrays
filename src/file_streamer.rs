@@ -144,7 +144,7 @@ impl Write for FileStreamer {
     #[inline]
     fn write_all_vectored(&mut self, bufs: &mut [IoSlice]) -> io::Result<()> {
         let mut new_pos = self.pos;
-        for buf in bufs {
+        for buf in bufs.iter() {
             new_pos = new_pos
                 .checked_add(buf.len() as u64)
                 .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "position overflow"))?;

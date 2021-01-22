@@ -4,6 +4,8 @@
 //! output. There's also [`FileEditor`] for combination input and output.
 
 #![deny(missing_docs)]
+#![cfg_attr(can_vector, feature(can_vector))]
+#![cfg_attr(write_all_vectored, feature(write_all_vectored))]
 
 #[cfg(feature = "io-streams")]
 mod file_streamer;
