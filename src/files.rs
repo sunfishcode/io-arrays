@@ -282,10 +282,10 @@ impl FileWriter {
         }
         #[cfg(windows)]
         {
-            assert_ne!(
-                (winx::query_access_information(file.as_raw_handle())?
-                    & AccessMode::FILE_APPEND_DATA)
-                    == AccessMode::FILE_APPEND_DATA,
+            assert!(
+                (winx::file::query_access_information(file.as_raw_handle()).unwrap()
+                    & winx::file::AccessMode::FILE_APPEND_DATA)
+                    == winx::file::AccessMode::FILE_APPEND_DATA,
                 "FileWriter doesn't support files opened with FILE_APPEND_DATA"
             );
         }
