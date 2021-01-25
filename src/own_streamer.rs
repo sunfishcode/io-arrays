@@ -9,19 +9,19 @@ use system_interface::io::Peek;
 /// description with the original file descriptor, and the file
 /// description includes the current position. In order to have independent
 /// streams through a file, we track our own current position.
-pub(crate) struct FileStreamer<File> {
+pub(crate) struct OwnStreamer<File> {
     inner: File,
     pos: u64,
 }
 
-impl<File> FileStreamer<File> {
+impl<File> OwnStreamer<File> {
     #[inline]
     pub(crate) fn new(inner: File, pos: u64) -> Self {
         Self { inner, pos }
     }
 }
 
-impl<File: ReadAt> Read for FileStreamer<File> {
+impl<File: ReadAt> Read for OwnStreamer<File> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -53,25 +53,13 @@ impl<File: ReadAt> Read for FileStreamer<File> {
     }
 
     #[inline]
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        let n = self.inner.read_to_end_at(buf, self.pos)?;
-        let new_pos = self
-            .pos
-            .checked_add(n as u64)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "position overflow"))?;
-        self.pos = new_pos;
-        Ok(n)
+    fn read_to_end(&mut self, _buf: &mut Vec<u8>) -> io::Result<usize> {
+        todo!("OwnStreamer::read_to_end")
     }
 
     #[inline]
-    fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
-        let n = self.inner.read_to_string_at(buf, self.pos)?;
-        let new_pos = self
-            .pos
-            .checked_add(n as u64)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "position overflow"))?;
-        self.pos = new_pos;
-        Ok(n)
+    fn read_to_string(&mut self, _buf: &mut String) -> io::Result<usize> {
+        todo!("OwnStreamer::read_to_string")
     }
 
     #[inline]
@@ -86,14 +74,14 @@ impl<File: ReadAt> Read for FileStreamer<File> {
     }
 }
 
-impl<File: ReadAt> Peek for FileStreamer<File> {
+impl<File: ReadAt> Peek for OwnStreamer<File> {
     #[inline]
     fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read_at(buf, self.pos)
     }
 }
 
-impl<File: WriteAt> Write for FileStreamer<File> {
+impl<File: WriteAt> Write for OwnStreamer<File> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let _new_pos = self

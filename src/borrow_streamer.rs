@@ -1,23 +1,35 @@
+use crate::{ReadAt, WriteAt};
 use std::{
     fmt::Arguments,
-    fs::File,
-    io::{self, IoSlice, IoSliceMut, Read, Seek, SeekFrom, Write},
+    io::{self, IoSlice, IoSliceMut, Read, Write},
 };
-use system_interface::{fs::FileIoExt, io::Peek};
+use system_interface::io::Peek;
 
-pub(crate) struct BorrowStreamer<'file> {
+pub(crate) struct BorrowStreamer<'file, File> {
     inner: &'file File,
     pos: u64,
 }
 
-impl<'file> BorrowStreamer<'file> {
+pub(crate) struct BorrowStreamerMut<'file, File> {
+    inner: &'file mut File,
+    pos: u64,
+}
+
+impl<'file, File> BorrowStreamer<'file, File> {
     #[inline]
     pub(crate) fn new(inner: &'file File, pos: u64) -> Self {
         Self { inner, pos }
     }
 }
 
-impl<'file> Read for BorrowStreamer<'file> {
+impl<'file, File> BorrowStreamerMut<'file, File> {
+    #[inline]
+    pub(crate) fn new(inner: &'file mut File, pos: u64) -> Self {
+        Self { inner, pos }
+    }
+}
+
+impl<'file, File: ReadAt> Read for BorrowStreamer<'file, File> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -45,29 +57,17 @@ impl<'file> Read for BorrowStreamer<'file> {
     #[cfg(can_vector)]
     #[inline]
     fn is_read_vectored(&self) -> bool {
-        self.inner.is_read_vectored()
+        self.inner.is_read_vectored_at()
     }
 
     #[inline]
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-        let n = self.inner.read_to_end_at(buf, self.pos)?;
-        let new_pos = self
-            .pos
-            .checked_add(n as u64)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "position overflow"))?;
-        self.pos = new_pos;
-        Ok(n)
+    fn read_to_end(&mut self, _buf: &mut Vec<u8>) -> io::Result<usize> {
+        todo!("BorrowStreamer::read_to_end")
     }
 
     #[inline]
-    fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
-        let n = self.inner.read_to_string_at(buf, self.pos)?;
-        let new_pos = self
-            .pos
-            .checked_add(n as u64)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "position overflow"))?;
-        self.pos = new_pos;
-        Ok(n)
+    fn read_to_string(&mut self, _buf: &mut String) -> io::Result<usize> {
+        todo!("BorrowStreamer::read_to_string")
     }
 
     #[inline]
@@ -82,14 +82,14 @@ impl<'file> Read for BorrowStreamer<'file> {
     }
 }
 
-impl<'file> Peek for BorrowStreamer<'file> {
+impl<'file, File: ReadAt> Peek for BorrowStreamer<'file, File> {
     #[inline]
     fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read_at(buf, self.pos)
     }
 }
 
-impl<'file> Write for BorrowStreamer<'file> {
+impl<'file, File: WriteAt> Write for BorrowStreamerMut<'file, File> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -103,7 +103,7 @@ impl<'file> Write for BorrowStreamer<'file> {
 
     #[inline]
     fn flush(&mut self) -> io::Result<()> {
-        self.inner.flush()
+        Ok(())
     }
 
     #[inline]
@@ -122,7 +122,7 @@ impl<'file> Write for BorrowStreamer<'file> {
     #[cfg(can_vector)]
     #[inline]
     fn is_write_vectored(&self) -> bool {
-        self.inner.is_write_vectored()
+        self.inner.is_write_vectored_at()
     }
 
     #[inline]
@@ -155,24 +155,5 @@ impl<'file> Write for BorrowStreamer<'file> {
     fn write_fmt(&mut self, fmt: Arguments) -> io::Result<()> {
         // TODO: Use `to_str` when it's stablized: https://github.com/rust-lang/rust/issues/74442
         self.write_all(fmt.to_string().as_bytes())
-    }
-}
-
-impl<'file> Seek for BorrowStreamer<'file> {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        match pos {
-            SeekFrom::Start(offset) => self.pos = offset,
-            SeekFrom::End(offset) => {
-                self.pos = (self.inner.metadata()?.len() as i128 - offset as i128)
-                    .max(i128::from(u64::MIN))
-                    .min(i128::from(u64::MAX)) as u64
-            }
-            SeekFrom::Current(offset) => {
-                self.pos = (self.pos as i128 + offset as i128)
-                    .max(i128::from(u64::MIN))
-                    .min(i128::from(u64::MAX)) as u64
-            }
-        }
-        Ok(self.pos)
     }
 }

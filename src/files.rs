@@ -1,36 +1,23 @@
-use crate::borrow_streamer::BorrowStreamer;
+use crate::{filelike, Advice};
+#[cfg(feature = "io-streams")]
+use io_streams::StreamReader;
 #[cfg(unix)]
-use std::os::unix::{
-    fs::MetadataExt,
-    io::{AsRawFd, RawFd},
-};
+use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(target_os = "wasi")]
 use std::os::wasi::io::{AsRawFd, RawFd};
+#[cfg(windows)]
+use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::{
     fs,
-    io::{self, copy, IoSlice, IoSliceMut, Read, Seek, Write},
+    io::{self, IoSlice, IoSliceMut, Read, Seek, Write},
 };
 use system_interface::fs::FileIoExt;
 use unsafe_io::{AsUnsafeFile, FromUnsafeFile, IntoUnsafeFile, UnsafeFile};
-#[cfg(feature = "io-streams")]
-use {
-    crate::file_streamer::FileStreamer,
-    cap_fs_ext::{OpenOptions, Reopen},
-    io_streams::StreamReader,
-    std::io::SeekFrom,
-};
-#[cfg(windows)]
-use {
-    crate::windows,
-    std::os::windows::io::{AsRawHandle, RawHandle},
-};
-
-pub use system_interface::fs::Advice;
 
 /// Metadata information about a file.
 pub struct Metadata {
-    len: u64,
-    blksize: u64,
+    pub(crate) len: u64,
+    pub(crate) blksize: u64,
 }
 
 #[allow(clippy::len_without_is_empty)]
@@ -53,35 +40,20 @@ impl Metadata {
 /// A minimal base trait for file I/O. Defines operations common to all kinds
 /// of random-access devices that fit the "file" concept, including normal
 /// files, block devices, and in-memory buffers.
-pub trait MinimalFile: AsUnsafeFile {
+pub trait MinimalFile {
     /// Return the `Metadata` for the file. This is similar to
     /// `std::fs::File::metadata`, though it returns fewer fields since the
     /// underlying device may not be an actual filesystem inode.
-    #[inline]
-    fn metadata(&self) -> io::Result<Metadata> {
-        self.as_file_view().metadata().map(|meta| {
-            Metadata {
-                len: meta.len(),
-
-                #[cfg(not(windows))]
-                blksize: meta.blksize(),
-
-                // Windows doesn't have a convenient way to query this, but
-                // it often uses this specific value.
-                #[cfg(windows)]
-                blksize: 0x1000,
-            }
-        })
-    }
+    fn metadata(&self) -> io::Result<Metadata>;
 
     /// Announce the expected access pattern of the data at the given offset.
-    #[inline]
-    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
-        <fs::File as FileIoExt>::advise(&self.as_file_view(), offset, len, advice)
-    }
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()>;
 }
 
 /// A trait for reading from files.
+///
+/// Unlike `std::io::Read`, `ReadAt`'s functions take a `&self` rather than a
+/// `&mut self`, since they don't have a current position to mutate.
 pub trait ReadAt: MinimalFile {
     /// Reads a number of bytes starting from a given offset.
     ///
@@ -90,10 +62,7 @@ pub trait ReadAt: MinimalFile {
     /// I/O, and it's supported on non-Unix platforms including Windows.
     ///
     /// [`std::os::unix::fs::FileExt::read_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.read_at
-    #[inline]
-    fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
-        <fs::File as FileIoExt>::read_at(&self.as_file_view(), buf, offset)
-    }
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize>;
 
     /// Reads the exact number of byte required to fill buf from the given
     /// offset.
@@ -103,59 +72,20 @@ pub trait ReadAt: MinimalFile {
     /// I/O, and it's supported on non-Unix platforms including Windows.
     ///
     /// [`std::os::unix::fs::FileExt::read_exact_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.read_exact_at
-    #[inline]
-    fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
-        <fs::File as FileIoExt>::read_exact_at(&self.as_file_view(), buf, offset)
-    }
+    fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()>;
 
     /// Is to `read_vectored` what `read_at` is to `read`.
-    #[inline]
-    fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
-        <fs::File as FileIoExt>::read_vectored_at(&self.as_file_view(), bufs, offset)
-    }
+    fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize>;
 
     /// Is to `read_exact_vectored` what `read_exact_at` is to `read_exact`.
-    #[inline]
-    fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
-        <fs::File as FileIoExt>::read_exact_vectored_at(&self.as_file_view(), bufs, offset)
-    }
+    fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()>;
 
     /// Determines if `Self` has an efficient `read_vectored_at` implementation.
-    #[inline]
-    fn is_read_vectored_at(&self) -> bool {
-        <fs::File as FileIoExt>::is_read_vectored_at(&self.as_file_view())
-    }
-
-    /// Read all bytes until EOF in this source, placing them into `buf`.
-    #[inline]
-    fn read_to_end_at(&self, buf: &mut Vec<u8>, offset: u64) -> io::Result<usize> {
-        <fs::File as FileIoExt>::read_to_end_at(&self.as_file_view(), buf, offset)
-    }
-
-    /// Read all bytes until EOF in this source, appending them to `buf`.
-    #[inline]
-    fn read_to_string_at(&self, buf: &mut String, offset: u64) -> io::Result<usize> {
-        <fs::File as FileIoExt>::read_to_string_at(&self.as_file_view(), buf, offset)
-    }
+    fn is_read_vectored_at(&self) -> bool;
 
     /// Create a `StreamReader` which reads from the file at the given offset.
     #[cfg(feature = "io-streams")]
-    fn read_via_stream(&self, offset: u64) -> io::Result<StreamReader> {
-        // On operating systems where we can do so, reopen the file so that we
-        // get an independent current position.
-        if let Ok(file) = self.as_file_view().reopen(OpenOptions::new().read(true)) {
-            if offset != 0 {
-                file.seek(SeekFrom::Start(offset))?;
-            }
-            return Ok(StreamReader::file(file));
-        }
-
-        // Otherwise, manually stream the file.
-        StreamReader::piped_thread(Box::new(FileStreamer::new(
-            self.as_file_view().try_clone()?,
-            offset,
-        )))
-    }
+    fn read_via_stream_at(&self, offset: u64) -> io::Result<StreamReader>;
 }
 
 /// A trait for writing to files.
@@ -167,10 +97,7 @@ pub trait WriteAt: MinimalFile {
     /// I/O, and it's supported on non-Unix platforms including Windows.
     ///
     /// [`std::os::unix::fs::FileExt::write_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.write_at
-    #[inline]
-    fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
-        <fs::File as FileIoExt>::write_at(&self.as_file_view(), buf, offset)
-    }
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize>;
 
     /// Attempts to write an entire buffer starting from a given offset.
     ///
@@ -179,61 +106,29 @@ pub trait WriteAt: MinimalFile {
     /// I/O, and it's supported on non-Unix platforms including Windows.
     ///
     /// [`std::os::unix::fs::FileExt::write_all_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.write_all_at
-    #[inline]
-    fn write_all_at(&self, buf: &[u8], offset: u64) -> io::Result<()> {
-        <fs::File as FileIoExt>::write_all_at(&self.as_file_view(), buf, offset)
-    }
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()>;
 
     /// Is to `write_vectored` what `write_at` is to `write`.
-    #[inline]
-    fn write_vectored_at(&self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
-        <fs::File as FileIoExt>::write_vectored_at(&self.as_file_view(), bufs, offset)
-    }
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize>;
 
     /// Is to `write_all_vectored` what `write_all_at` is to `write_all`.
-    #[inline]
-    fn write_all_vectored_at(&self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
-        <fs::File as FileIoExt>::write_all_vectored_at(&self.as_file_view(), bufs, offset)
-    }
-
-    /// Allocate space in the file, increasing the file size as needed, and
-    /// ensuring that there are no holes under the given range.
-    ///
-    /// FIXME: It's unclear that this is reliably implementable on Windows,
-    /// so this may have to go away.
-    #[inline]
-    fn allocate(&self, offset: u64, len: u64) -> io::Result<()> {
-        <fs::File as FileIoExt>::allocate(&self.as_file_view(), offset, len)
-    }
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()>;
 
     /// Determines if `Self` has an efficient `write_vectored_at` implementation.
-    #[inline]
-    fn is_write_vectored_at(&self) -> bool {
-        <fs::File as FileIoExt>::is_write_vectored_at(&self.as_file_view())
-    }
+    fn is_write_vectored_at(&self) -> bool;
 
     /// Copy `len` bytes from `input` at `input_offset` to `self` at `offset`.
-    #[inline]
     fn copy_from<R: ReadAt>(
-        &self,
+        &mut self,
         offset: u64,
         input: &R,
         input_offset: u64,
         len: u64,
-    ) -> io::Result<u64> {
-        let output_view = self.as_file_view();
-        let input_view = input.as_file_view();
-        let mut output_streamer = BorrowStreamer::new(&output_view, offset);
-        let input_streamer = BorrowStreamer::new(&input_view, input_offset);
-        copy(&mut input_streamer.take(len), &mut output_streamer)
-    }
+    ) -> io::Result<u64>;
 
     /// Truncates or extends the underlying file, updating the size of this
     /// file to become `size`.
-    #[inline]
-    fn set_len(&self, size: u64) -> io::Result<()> {
-        self.as_file_view().set_len(size)
-    }
+    fn set_len(&mut self, size: u64) -> io::Result<()>;
 }
 
 /// A trait for reading and writing to files.
@@ -339,154 +234,546 @@ impl FileEditor {
     }
 }
 
-impl MinimalFile for FileReader {}
-impl MinimalFile for FileWriter {}
-impl MinimalFile for FileEditor {}
+impl MinimalFile for FileReader {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
 
-// We can't use Windows' `read_at` or `write_at` here because it isn't able to
-// extend the length of a file we can't `reopen` (such as temporary files).
-// However, while `FileIoExt` can't use `seek_write` because it mutates the
-// current position, here we *can* use plain `seek_write` because `FileEditor`
-// doesn't expose the current position.
-#[cfg(not(windows))]
-impl ReadAt for FileReader {}
-#[cfg(not(windows))]
-impl ReadAt for FileEditor {}
-#[cfg(not(windows))]
-impl WriteAt for FileWriter {}
-#[cfg(not(windows))]
-impl WriteAt for FileEditor {}
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
 
-impl MinimalFile for fs::File {}
-impl ReadAt for fs::File {}
-impl WriteAt for fs::File {}
+impl MinimalFile for FileWriter {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
 
-#[cfg(feature = "cap-std")]
-impl MinimalFile for cap_std::fs::File {}
-#[cfg(feature = "cap-std")]
-impl ReadAt for cap_std::fs::File {}
-#[cfg(feature = "cap-std")]
-impl WriteAt for cap_std::fs::File {}
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
 
-#[cfg(feature = "cap-async-std")]
-impl MinimalFile for cap_async_std::fs::File {}
-#[cfg(feature = "cap-async-std")]
-impl ReadAt for cap_async_std::fs::File {}
-#[cfg(feature = "cap-async-std")]
-impl WriteAt for cap_async_std::fs::File {}
+impl MinimalFile for FileEditor {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
 
-#[cfg(feature = "async-std")]
-impl MinimalFile for async_std::fs::File {}
-#[cfg(feature = "async-std")]
-impl ReadAt for async_std::fs::File {}
-#[cfg(feature = "async-std")]
-impl WriteAt for async_std::fs::File {}
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
 
-#[cfg(windows)]
 impl ReadAt for FileReader {
     #[inline]
     fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
-        windows::read_at(&self.as_file_view(), buf, offset)
+        filelike::read_at(self, buf, offset)
     }
 
+    #[inline]
     fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
-        windows::read_exact_at(&self.as_file_view(), buf, offset)
+        filelike::read_exact_at(self, buf, offset)
     }
 
+    #[inline]
     fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
-        windows::read_vectored_at(&self.as_file_view(), bufs, offset)
+        filelike::read_vectored_at(self, bufs, offset)
     }
 
+    #[inline]
     fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
-        windows::read_exact_vectored_at(&self.as_file_view(), bufs, offset)
+        filelike::read_exact_vectored_at(self, bufs, offset)
     }
 
+    #[inline]
     fn is_read_vectored_at(&self) -> bool {
-        windows::is_read_vectored_at(&self.as_file_view())
+        filelike::is_read_vectored_at(self)
+    }
+
+    #[cfg(feature = "io-streams")]
+    #[inline]
+    fn read_via_stream_at(&self, offset: u64) -> io::Result<StreamReader> {
+        filelike::read_via_stream_at(self, offset)
     }
 }
 
-#[cfg(windows)]
 impl ReadAt for FileEditor {
     #[inline]
     fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
-        windows::read_at(&self.as_file_view(), buf, offset)
+        filelike::read_at(self, buf, offset)
     }
 
+    #[inline]
     fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
-        windows::read_exact_at(&self.as_file_view(), buf, offset)
+        filelike::read_exact_at(self, buf, offset)
     }
 
+    #[inline]
     fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
-        windows::read_vectored_at(&self.as_file_view(), bufs, offset)
+        filelike::read_vectored_at(self, bufs, offset)
     }
 
+    #[inline]
     fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
-        windows::read_exact_vectored_at(&self.as_file_view(), bufs, offset)
+        filelike::read_exact_vectored_at(self, bufs, offset)
     }
 
+    #[inline]
     fn is_read_vectored_at(&self) -> bool {
-        windows::is_read_vectored_at(&self.as_file_view())
+        filelike::is_read_vectored_at(self)
+    }
+
+    #[cfg(feature = "io-streams")]
+    #[inline]
+    fn read_via_stream_at(&self, offset: u64) -> io::Result<StreamReader> {
+        filelike::read_via_stream_at(self, offset)
     }
 }
 
-#[cfg(windows)]
 impl WriteAt for FileWriter {
-    #[inline]
-    fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
-        windows::write_at(&self.as_file_view(), buf, offset)
-    }
-
-    fn write_all_at(&self, buf: &[u8], offset: u64) -> io::Result<()> {
-        windows::write_all_at(&self.as_file_view(), buf, offset)
-    }
-
-    fn write_vectored_at(&self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
-        windows::write_vectored_at(&self.as_file_view(), bufs, offset)
-    }
-
-    fn write_all_vectored_at(&self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
-        windows::write_all_vectored_at(&self.as_file_view(), bufs, offset)
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(self, buf, offset)
     }
 
     #[inline]
-    fn allocate(&self, offset: u64, len: u64) -> io::Result<()> {
-        windows::allocate(&self.as_file_view(), offset, len)
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(self, bufs, offset)
     }
 
     #[inline]
     fn is_write_vectored_at(&self) -> bool {
-        windows::is_write_vectored_at(&self.as_file_view())
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(self, size)
     }
 }
 
-#[cfg(windows)]
 impl WriteAt for FileEditor {
-    #[inline]
-    fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
-        windows::write_at(&self.as_file_view(), buf, offset)
-    }
-
-    fn write_all_at(&self, buf: &[u8], offset: u64) -> io::Result<()> {
-        windows::write_all_at(&self.as_file_view(), buf, offset)
-    }
-
-    fn write_vectored_at(&self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
-        windows::write_vectored_at(&self.as_file_view(), bufs, offset)
-    }
-
-    fn write_all_vectored_at(&self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
-        windows::write_all_vectored_at(&self.as_file_view(), bufs, offset)
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(self, buf, offset)
     }
 
     #[inline]
-    fn allocate(&self, offset: u64, len: u64) -> io::Result<()> {
-        windows::allocate(&self.as_file_view(), offset, len)
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(self, bufs, offset)
     }
 
     #[inline]
     fn is_write_vectored_at(&self) -> bool {
-        windows::is_write_vectored_at(&self.as_file_view())
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(self, size)
+    }
+}
+
+impl MinimalFile for fs::File {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
+impl ReadAt for fs::File {
+    #[inline]
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
+        filelike::read_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
+        filelike::read_exact_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
+        filelike::read_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
+        filelike::read_exact_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_read_vectored_at(&self) -> bool {
+        filelike::is_read_vectored_at(self)
+    }
+
+    #[cfg(feature = "io-streams")]
+    #[inline]
+    fn read_via_stream_at(&self, offset: u64) -> io::Result<StreamReader> {
+        filelike::read_via_stream_at(self, offset)
+    }
+}
+
+impl WriteAt for fs::File {
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(self, size)
+    }
+}
+
+#[cfg(feature = "cap-std")]
+impl MinimalFile for cap_std::fs::File {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
+#[cfg(feature = "cap-std")]
+impl ReadAt for cap_std::fs::File {
+    #[inline]
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
+        filelike::read_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
+        filelike::read_exact_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
+        filelike::read_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
+        filelike::read_exact_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_read_vectored_at(&self) -> bool {
+        filelike::is_read_vectored_at(self)
+    }
+
+    #[cfg(feature = "io-streams")]
+    #[inline]
+    fn read_via_stream_at(&self, offset: u64) -> io::Result<StreamReader> {
+        filelike::read_via_stream_at(self, offset)
+    }
+}
+
+#[cfg(feature = "cap-std")]
+impl WriteAt for cap_std::fs::File {
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(self, size)
+    }
+}
+
+#[cfg(feature = "cap-async-std")]
+impl MinimalFile for cap_async_std::fs::File {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
+#[cfg(feature = "cap-async-std")]
+impl ReadAt for cap_async_std::fs::File {
+    #[inline]
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
+        filelike::read_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
+        filelike::read_exact_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
+        filelike::read_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
+        filelike::read_exact_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_read_vectored_at(&self) -> bool {
+        filelike::is_read_vectored_at(self)
+    }
+
+    #[cfg(feature = "io-streams")]
+    #[inline]
+    fn read_via_stream_at(&self, offset: u64) -> io::Result<StreamReader> {
+        filelike::read_via_stream_at(self, offset)
+    }
+}
+
+#[cfg(feature = "cap-async-std")]
+impl WriteAt for cap_async_std::fs::File {
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(self, size)
+    }
+}
+
+#[cfg(feature = "async-std")]
+impl MinimalFile for async_std::fs::File {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
+#[cfg(feature = "async-std")]
+impl ReadAt for async_std::fs::File {
+    #[inline]
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
+        filelike::read_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()> {
+        filelike::read_exact_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn read_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<usize> {
+        filelike::read_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()> {
+        filelike::read_exact_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_read_vectored_at(&self) -> bool {
+        filelike::is_read_vectored_at(self)
+    }
+
+    #[cfg(feature = "io-streams")]
+    #[inline]
+    fn read_via_stream_at(&self, offset: u64) -> io::Result<StreamReader> {
+        filelike::read_via_stream_at(self, offset)
+    }
+}
+
+#[cfg(feature = "async-std")]
+impl WriteAt for async_std::fs::File {
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(self, size)
     }
 }
 

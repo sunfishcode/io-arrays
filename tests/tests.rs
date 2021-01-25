@@ -23,12 +23,12 @@ fn test_small_copy() -> anyhow::Result<()> {
     // Test regular file I/O.
     {
         let input = FileReader::file(dir.open(in_txt)?);
-        let output = FileWriter::file(dir.create(out_txt)?);
+        let mut output = FileWriter::file(dir.create(out_txt)?);
         let meta = input.metadata()?;
         let len = meta.len();
         assert_eq!(len, 19);
         let mut buf = vec![0_u8; 13];
-        output.allocate(0, 13)?;
+        output.set_len(13)?;
         assert_eq!(output.metadata()?.len(), 13);
         input.read_exact_at(&mut buf, 3)?;
         output.write_all_at(&buf, 3)?;
@@ -52,12 +52,12 @@ fn test_streaming_read() -> anyhow::Result<()> {
 
     let input = FileReader::file(dir.open(in_txt)?);
     let mut buf = Vec::new();
-    input.read_via_stream(3)?.read_to_end(&mut buf)?;
+    input.read_via_stream_at(3)?.read_to_end(&mut buf)?;
     assert_eq!(&buf, b"Hello, world!");
 
     let input = FileReader::file(dir.open(in_txt)?);
     let mut buf = Vec::new();
-    input.read_via_stream(3)?.read_to_end(&mut buf)?;
+    input.read_via_stream_at(3)?.read_to_end(&mut buf)?;
     assert_eq!(&buf, b"Hello, world!");
 
     Ok(())
@@ -74,7 +74,7 @@ fn test_bytes() -> anyhow::Result<()> {
 
 #[test]
 fn test_anonymous() -> anyhow::Result<()> {
-    let editor = FileEditor::anonymous()?;
+    let mut editor = FileEditor::anonymous()?;
     editor.write_all_at(b"0123456789", 5)?;
     let mut buf = vec![0_u8; 4];
     editor.read_exact_at(&mut buf, 8)?;
@@ -87,7 +87,7 @@ fn test_anonymous() -> anyhow::Result<()> {
 fn test_write_past_end() -> anyhow::Result<()> {
     let dir = tmpdir();
     let name = "file.txt";
-    let editor = FileEditor::file(dir.open_with(
+    let mut editor = FileEditor::file(dir.open_with(
         name,
         OpenOptions::new().create_new(true).read(true).write(true),
     )?);
@@ -109,7 +109,7 @@ fn test_write_past_end() -> anyhow::Result<()> {
 fn test_read_past_end() -> anyhow::Result<()> {
     let dir = tmpdir();
     let name = "file.txt";
-    let editor = FileEditor::file(dir.open_with(
+    let mut editor = FileEditor::file(dir.open_with(
         name,
         OpenOptions::new().create_new(true).read(true).write(true),
     )?);
@@ -130,7 +130,7 @@ fn test_read_past_end() -> anyhow::Result<()> {
 fn test_write_nothing_past_end() -> anyhow::Result<()> {
     let dir = tmpdir();
     let name = "file.txt";
-    let editor = FileEditor::file(dir.open_with(
+    let mut editor = FileEditor::file(dir.open_with(
         name,
         OpenOptions::new().create_new(true).read(true).write(true),
     )?);
@@ -144,7 +144,7 @@ fn test_write_nothing_past_end() -> anyhow::Result<()> {
 fn test_various_edits() -> anyhow::Result<()> {
     let dir = tmpdir();
     let name = "file.txt";
-    let editor = FileEditor::file(dir.open_with(
+    let mut editor = FileEditor::file(dir.open_with(
         name,
         OpenOptions::new().create_new(true).read(true).write(true),
     )?);
@@ -159,6 +159,9 @@ fn test_various_edits() -> anyhow::Result<()> {
     editor.set_len(0)?;
     editor.write_all_at(b"greetings!", 4096)?;
     editor.read_exact_at(&mut buf, 0)?;
-    assert_eq!(buf, b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
+    assert_eq!(
+        buf,
+        b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+    );
     Ok(())
 }

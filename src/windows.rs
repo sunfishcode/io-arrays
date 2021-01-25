@@ -3,27 +3,67 @@
 //! These can use `seek_read`/`seek_write` because the file's current position
 //! is not exposed.
 
+use crate::{
+    borrow_streamer::{BorrowStreamer, BorrowStreamerMut},
+    Advice, Metadata, ReadAt,
+};
 use std::{
     convert::TryInto,
     fs,
-    io::{self, IoSlice, IoSliceMut},
+    io::{self, copy, IoSlice, IoSliceMut, Read},
     os::windows::fs::FileExt,
     slice,
 };
 use system_interface::fs::FileIoExt;
+use unsafe_io::AsUnsafeFile;
 
+/// Implement [`crate::MinimalFile::metadata`].
 #[inline]
-pub(crate) fn read_at(file: &fs::File, buf: &mut [u8], offset: u64) -> io::Result<usize> {
-    file.seek_read(buf, offset)
+pub fn metadata<Filelike: AsUnsafeFile>(filelike: &Filelike) -> io::Result<Metadata> {
+    filelike.as_file_view().metadata().map(|meta| {
+        Metadata {
+            len: meta.len(),
+
+            #[cfg(not(windows))]
+            blksize: meta.blksize(),
+
+            // Windows doesn't have a convenient way to query this, but
+            // it often uses this specific value.
+            #[cfg(windows)]
+            blksize: 0x1000,
+        }
+    })
 }
 
-pub(crate) fn read_exact_at(
-    file: &fs::File,
+/// Implement [`crate::MinimalFile::avise`].
+#[inline]
+pub fn advise<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
+    offset: u64,
+    len: u64,
+    advice: Advice,
+) -> io::Result<()> {
+    <fs::File as FileIoExt>::advise(&filelike.as_file_view(), offset, len, advice)
+}
+
+/// Implement [`crate::ReadAt::read_at`].
+#[inline]
+pub fn read_at<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
+    buf: &mut [u8],
+    offset: u64,
+) -> io::Result<usize> {
+    filelike.as_file_view().seek_read(buf, offset)
+}
+
+/// Implement [`crate::ReadAt::read_exact_at`].
+pub fn read_exact_at<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
     mut buf: &mut [u8],
     mut offset: u64,
 ) -> io::Result<()> {
     loop {
-        match read_at(file, buf, offset) {
+        match read_at(filelike, buf, offset) {
             Ok(0) if !buf.is_empty() => {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
@@ -45,8 +85,9 @@ pub(crate) fn read_exact_at(
     }
 }
 
-pub(crate) fn read_vectored_at(
-    file: &fs::File,
+/// Implement [`crate::ReadAt::read_vectored_at`].
+pub fn read_vectored_at<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
     bufs: &mut [IoSliceMut],
     offset: u64,
 ) -> io::Result<usize> {
@@ -54,16 +95,17 @@ pub(crate) fn read_vectored_at(
         .iter_mut()
         .find(|b| !b.is_empty())
         .map_or(&mut [][..], |b| &mut **b);
-    read_at(file, buf, offset)
+    read_at(filelike, buf, offset)
 }
 
-pub(crate) fn read_exact_vectored_at(
-    file: &fs::File,
+/// Implement [`crate::ReadAt::read_exact_vectored_at`].
+pub fn read_exact_vectored_at<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
     mut bufs: &mut [IoSliceMut],
     mut offset: u64,
 ) -> io::Result<()> {
     while !bufs.is_empty() {
-        match read_vectored_at(file, bufs, offset) {
+        match read_vectored_at(filelike, bufs, offset) {
             Ok(nread) => {
                 offset = offset
                     .checked_add(nread.try_into().unwrap())
@@ -77,18 +119,30 @@ pub(crate) fn read_exact_vectored_at(
     Ok(())
 }
 
-pub(crate) fn is_read_vectored_at(_file: &fs::File) -> bool {
+/// Implement [`crate::ReadAt::is_read_vectored_at`].
+#[inline]
+pub fn is_read_vectored_at<Filelike: AsUnsafeFile>(_filelike: &Filelike) -> bool {
     false
 }
 
+/// Implement [`crate::WriteAt::write_at`].
 #[inline]
-pub(crate) fn write_at(file: &fs::File, buf: &[u8], offset: u64) -> io::Result<usize> {
-    file.seek_write(buf, offset)
+pub fn write_at<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
+    buf: &[u8],
+    offset: u64,
+) -> io::Result<usize> {
+    filelike.as_file_view().seek_write(buf, offset)
 }
 
-pub(crate) fn write_all_at(file: &fs::File, mut buf: &[u8], mut offset: u64) -> io::Result<()> {
+/// Implement [`crate::WriteAt::write_all_at`].
+pub fn write_all_at<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
+    mut buf: &[u8],
+    mut offset: u64,
+) -> io::Result<()> {
     loop {
-        match write_at(file, buf, offset) {
+        match write_at(filelike, buf, offset) {
             Ok(nwritten) => {
                 offset = offset
                     .checked_add(nwritten.try_into().unwrap())
@@ -104,8 +158,9 @@ pub(crate) fn write_all_at(file: &fs::File, mut buf: &[u8], mut offset: u64) -> 
     }
 }
 
-pub(crate) fn write_vectored_at(
-    file: &fs::File,
+/// Implement [`crate::WriteAt::write_vectored_at`].
+pub fn write_vectored_at<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
     bufs: &[IoSlice],
     offset: u64,
 ) -> io::Result<usize> {
@@ -113,16 +168,17 @@ pub(crate) fn write_vectored_at(
         .iter()
         .find(|b| !b.is_empty())
         .map_or(&[][..], |b| &**b);
-    write_at(file, buf, offset)
+    write_at(filelike, buf, offset)
 }
 
-pub(crate) fn write_all_vectored_at(
-    file: &fs::File,
+/// Implement [`crate::WriteAt::write_all_vectored_at`].
+pub fn write_all_vectored_at<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
     mut bufs: &mut [IoSlice],
     mut offset: u64,
 ) -> io::Result<()> {
     while !bufs.is_empty() {
-        match write_vectored_at(file, bufs, offset) {
+        match write_vectored_at(filelike, bufs, offset) {
             Ok(nwritten) => {
                 offset = offset
                     .checked_add(nwritten.try_into().unwrap())
@@ -136,17 +192,31 @@ pub(crate) fn write_all_vectored_at(
     Ok(())
 }
 
+/// Implement [`crate::WriteAt::is_write_vectored_at`].
 #[inline]
-pub(crate) fn allocate(file: &fs::File, offset: u64, len: u64) -> io::Result<()> {
-    // FIXME: do a seek_write at the end to lengthen it? But that might
-    // be racy. Maybe we should just have a set_len and pass the problem
-    // on to our users.
-    file.allocate(offset, len)
+pub fn is_write_vectored_at<Filelike: AsUnsafeFile>(_filelike: &Filelike) -> bool {
+    false
 }
 
+/// Implement [`crate::WriteAt::copy_from`].
 #[inline]
-pub(crate) fn is_write_vectored_at(_file: &fs::File) -> bool {
-    false
+pub fn copy_from<Filelike: AsUnsafeFile, R: ReadAt>(
+    filelike: &mut Filelike,
+    offset: u64,
+    input: &R,
+    input_offset: u64,
+    len: u64,
+) -> io::Result<u64> {
+    let mut input_view = filelike.as_file_view();
+    let mut output_streamer = BorrowStreamerMut::new(&mut *input_view, offset);
+    let input_streamer = BorrowStreamer::new(input, input_offset);
+    copy(&mut input_streamer.take(len), &mut output_streamer)
+}
+
+/// Implement [`crate::WriteAt::set_len`].
+#[inline]
+pub fn set_len<Filelike: AsUnsafeFile>(filelike: &mut Filelike, size: u64) -> io::Result<()> {
+    filelike.as_file_view().set_len(size)
 }
 
 /// This will be obviated by [rust-lang/rust#62726].
