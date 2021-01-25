@@ -16,6 +16,13 @@ use std::{
 };
 use system_interface::fs::FileIoExt;
 use unsafe_io::AsUnsafeFile;
+#[cfg(feature = "io-streams")]
+use {
+    crate::own_streamer::OwnStreamer,
+    cap_fs_ext::{OpenOptions, Reopen},
+    io_streams::StreamReader,
+    std::io::SeekFrom,
+};
 
 /// Implement [`crate::MinimalFile::metadata`].
 #[inline]
@@ -123,6 +130,31 @@ pub fn read_exact_vectored_at<Filelike: AsUnsafeFile>(
 #[inline]
 pub fn is_read_vectored_at<Filelike: AsUnsafeFile>(_filelike: &Filelike) -> bool {
     false
+}
+
+/// Implement [`crate::ReadAt::read_via_stream_at`].
+#[cfg(feature = "io-streams")]
+pub fn read_via_stream_at<Filelike: AsUnsafeFile>(
+    filelike: &Filelike,
+    offset: u64,
+) -> io::Result<StreamReader> {
+    // On operating systems where we can do so, reopen the file so that we
+    // get an independent current position.
+    if let Ok(file) = filelike
+        .as_file_view()
+        .reopen(OpenOptions::new().read(true))
+    {
+        if offset != 0 {
+            file.seek(SeekFrom::Start(offset))?;
+        }
+        return Ok(StreamReader::file(file));
+    }
+
+    // Otherwise, manually stream the file.
+    StreamReader::piped_thread(Box::new(OwnStreamer::new(
+        filelike.as_file_view().try_clone()?,
+        offset,
+    )))
 }
 
 /// Implement [`crate::WriteAt::write_at`].
