@@ -532,7 +532,7 @@ impl AsRawHandle for FileEditor {
 #[cfg(any(target_os = "android", target_os = "linux"))]
 fn create_anonymous() -> io::Result<UnsafeFile> {
     let flags = libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING;
-    let name = b"io_files anonymous file\0".as_ptr() as *const libc::c_char;
+    let name = b"io_files anonymous file\0".as_ptr().cast::<libc::c_char>();
     let fd = unsafe { memfd_create(name, flags) };
     if fd == -1 {
         return Err(io::Error::last_os_error());
