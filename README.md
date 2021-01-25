@@ -12,15 +12,20 @@
   </p>
 </div>
 
-This crate defines [`FileReader`], [`FileWriter`], and [`FileEditor`]
-types which provide safe, owning, unbuffered, and unlocked access to raw
-file-like I/O, such as normal files, block devices, and anonymous files.
+This crate defines [`ReadAt`], [`WriteAt`], and [`EditAt`] traits which define
+interfaces to random-access or seekable devices, such as normal files, block
+devices, disk partitions, and memory buffers.
 
+It also defines [`FileReader`], [`FileWriter`], and [`FileEditor`] types which
+implement the above traits and and can be constructed from any file-like type.
 On Posix-ish platforms, including limited support for WASI, these types just
 contain a single file descriptor (and implement [`AsRawFd`]), plus any
 resources needed to safely hold the file descriptor live. On Windows, they
 contain a single file handle (and implement [`AsRawHandle`]).
 
+[`ReadAt`]: https://docs.rs/io-files/latest/io_files/trait.ReadAt.html
+[`WriteAt`]: https://docs.rs/io-files/latest/io_files/trait.WriteAt.html
+[`EditAt`]: https://docs.rs/io-files/latest/io_files/trait.EditAt.html
 [`FileReader`]: https://docs.rs/io-files/latest/io_files/struct.FileReader.html
 [`FileWriter`]: https://docs.rs/io-files/latest/io_files/struct.FileWriter.html
 [`FileEditor`]: https://docs.rs/io-files/latest/io_files/struct.FileEditor.html
