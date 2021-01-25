@@ -99,6 +99,7 @@ fn test_write_past_end() -> anyhow::Result<()> {
     let mut cmp = vec![0_u8; 8192];
     cmp.extend_from_slice(message);
     assert_eq!(buf, cmp);
+    assert_eq!(editor.metadata()?.len(), 8192 + message.len() as u64);
 
     Ok(())
 }
@@ -121,5 +122,43 @@ fn test_read_past_end() -> anyhow::Result<()> {
         std::io::ErrorKind::UnexpectedEof
     );
 
+    Ok(())
+}
+
+// Test that an empty past the end doesn't resize the file.
+#[test]
+fn test_write_nothing_past_end() -> anyhow::Result<()> {
+    let dir = tmpdir();
+    let name = "file.txt";
+    let editor = FileEditor::file(dir.open_with(
+        name,
+        OpenOptions::new().create_new(true).read(true).write(true),
+    )?);
+    editor.write_all_at(b"", 8192)?;
+    assert_eq!(editor.metadata()?.len(), 0);
+    Ok(())
+}
+
+// Test that trucating the file and re-extending it zero-fills.
+#[test]
+fn test_various_edits() -> anyhow::Result<()> {
+    let dir = tmpdir();
+    let name = "file.txt";
+    let editor = FileEditor::file(dir.open_with(
+        name,
+        OpenOptions::new().create_new(true).read(true).write(true),
+    )?);
+    editor.write_all_at(b"hello, ", 6)?;
+    editor.write_all_at(b"world!", 13)?;
+    editor.set_len(0)?;
+    editor.write_all_at(b"greetings!", 19)?;
+    assert_eq!(editor.metadata()?.len(), 29);
+    let mut buf = vec![0xa0_u8; 29];
+    editor.read_exact_at(&mut buf, 0)?;
+    assert_eq!(buf, b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0greetings!");
+    editor.set_len(0)?;
+    editor.write_all_at(b"greetings!", 4096)?;
+    editor.read_exact_at(&mut buf, 0)?;
+    assert_eq!(buf, b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
     Ok(())
 }

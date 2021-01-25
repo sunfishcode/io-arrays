@@ -198,6 +198,9 @@ pub trait WriteAt: MinimalFile {
 
     /// Allocate space in the file, increasing the file size as needed, and
     /// ensuring that there are no holes under the given range.
+    ///
+    /// FIXME: It's unclear that this is reliably implementable on Windows,
+    /// so this may have to go away.
     #[inline]
     fn allocate(&self, offset: u64, len: u64) -> io::Result<()> {
         <fs::File as FileIoExt>::allocate(&self.as_file_view(), offset, len)
@@ -223,6 +226,13 @@ pub trait WriteAt: MinimalFile {
         let mut output_streamer = BorrowStreamer::new(&output_view, offset);
         let input_streamer = BorrowStreamer::new(&input_view, input_offset);
         copy(&mut input_streamer.take(len), &mut output_streamer)
+    }
+
+    /// Truncates or extends the underlying file, updating the size of this
+    /// file to become `size`.
+    #[inline]
+    fn set_len(&self, size: u64) -> io::Result<()> {
+        self.as_file_view().set_len(size)
     }
 }
 
