@@ -3,7 +3,7 @@
 
 use cap_std::fs::OpenOptions;
 use cap_tempfile::{tempdir, TempDir};
-use io_files::{FileEditor, FileReader, FileWriter, MinimalFile, ReadAt, WriteAt};
+use io_ranges::{FileEditor, FileReader, FileWriter, MinimalFile, ReadAt, WriteAt};
 use std::io::{Read, Write};
 
 #[allow(unused)]

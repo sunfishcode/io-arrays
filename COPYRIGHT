@@ -1,19 +1,19 @@
 Short version for non-lawyers:
 
-`io-files` is triple-licensed under Apache 2.0 with the LLVM Exception,
+`io-ranges` is triple-licensed under Apache 2.0 with the LLVM Exception,
 Apache 2.0, and MIT terms.
 
 
 Longer version:
 
-Copyrights in the `io-files` project are retained by their contributors.
-No copyright assignment is required to contribute to the `io-files`
+Copyrights in the `io-ranges` project are retained by their contributors.
+No copyright assignment is required to contribute to the `io-ranges`
 project.
 
 Some files include code derived from Rust's `libstd`; see the comments in
 the code for details.
 
-Except as otherwise noted (below and/or in individual files), `io-files`
+Except as otherwise noted (below and/or in individual files), `io-ranges`
 is licensed under:
 
  - the Apache License, Version 2.0, with the LLVM Exception
