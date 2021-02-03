@@ -30,8 +30,6 @@ pub mod filelike {
     pub use crate::windows::*;
 }
 
-pub use files::{
-    EditAt, Metadata, MinimalFile, RangeEditor, RangeReader, RangeWriter, ReadAt, WriteAt,
-};
+pub use files::{EditAt, Metadata, Range, RangeEditor, RangeReader, RangeWriter, ReadAt, WriteAt};
 
 pub use system_interface::fs::Advice;

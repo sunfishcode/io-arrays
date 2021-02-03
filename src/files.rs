@@ -37,10 +37,10 @@ impl Metadata {
     }
 }
 
-/// A minimal base trait for file I/O. Defines operations common to all kinds
+/// A minimal base trait for range I/O. Defines operations common to all kinds
 /// of random-access devices that fit the "file" concept, including normal
 /// files, block devices, and in-memory buffers.
-pub trait MinimalFile {
+pub trait Range {
     /// Return the `Metadata` for the file. This is similar to
     /// `std::fs::File::metadata`, though it returns fewer fields since the
     /// underlying device may not be an actual filesystem inode.
@@ -54,7 +54,7 @@ pub trait MinimalFile {
 ///
 /// Unlike `std::io::Read`, `ReadAt`'s functions take a `&self` rather than a
 /// `&mut self`, since they don't have a current position to mutate.
-pub trait ReadAt: MinimalFile {
+pub trait ReadAt: Range {
     /// Reads a number of bytes starting from a given offset.
     ///
     /// This is similar to [`std::os::unix::fs::FileExt::read_at`], except it
@@ -89,7 +89,7 @@ pub trait ReadAt: MinimalFile {
 }
 
 /// A trait for writing to files.
-pub trait WriteAt: MinimalFile {
+pub trait WriteAt: Range {
     /// Writes a number of bytes starting from a given offset.
     ///
     /// This is similar to [`std::os::unix::fs::FileExt::write_at`], except it
@@ -234,7 +234,7 @@ impl RangeEditor {
     }
 }
 
-impl MinimalFile for RangeReader {
+impl Range for RangeReader {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -246,7 +246,7 @@ impl MinimalFile for RangeReader {
     }
 }
 
-impl MinimalFile for RangeWriter {
+impl Range for RangeWriter {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -258,7 +258,7 @@ impl MinimalFile for RangeWriter {
     }
 }
 
-impl MinimalFile for RangeEditor {
+impl Range for RangeEditor {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -420,7 +420,7 @@ impl WriteAt for RangeEditor {
     }
 }
 
-impl MinimalFile for fs::File {
+impl Range for fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -508,7 +508,7 @@ impl WriteAt for fs::File {
 }
 
 #[cfg(feature = "cap-std")]
-impl MinimalFile for cap_std::fs::File {
+impl Range for cap_std::fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -598,7 +598,7 @@ impl WriteAt for cap_std::fs::File {
 }
 
 #[cfg(feature = "cap-async-std")]
-impl MinimalFile for cap_async_std::fs::File {
+impl Range for cap_async_std::fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -688,7 +688,7 @@ impl WriteAt for cap_async_std::fs::File {
 }
 
 #[cfg(feature = "async-std")]
-impl MinimalFile for async_std::fs::File {
+impl Range for async_std::fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)

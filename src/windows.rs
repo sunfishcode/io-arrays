@@ -24,7 +24,7 @@ use {
     std::io::SeekFrom,
 };
 
-/// Implement [`crate::MinimalFile::metadata`].
+/// Implement [`crate::Range::metadata`].
 #[inline]
 pub fn metadata<Filelike: AsUnsafeFile>(filelike: &Filelike) -> io::Result<Metadata> {
     filelike.as_file_view().metadata().map(|meta| {
@@ -42,7 +42,7 @@ pub fn metadata<Filelike: AsUnsafeFile>(filelike: &Filelike) -> io::Result<Metad
     })
 }
 
-/// Implement [`crate::MinimalFile::avise`].
+/// Implement [`crate::Range::avise`].
 #[inline]
 pub fn advise<Filelike: AsUnsafeFile>(
     filelike: &Filelike,
