@@ -136,24 +136,24 @@ pub trait EditAt: ReadAt + WriteAt {}
 
 /// A random-access input source.
 #[derive(Debug)]
-pub struct FileReader {
+pub struct RangeReader {
     file: fs::File,
 }
 
 /// A random-access output source.
 #[derive(Debug)]
-pub struct FileWriter {
+pub struct RangeWriter {
     file: fs::File,
 }
 
 /// A random-access input and output source.
 #[derive(Debug)]
-pub struct FileEditor {
+pub struct RangeEditor {
     file: fs::File,
 }
 
-impl FileReader {
-    /// Convert a `File` into a `FileReader`.
+impl RangeReader {
+    /// Convert a `File` into a `RangeReader`.
     #[inline]
     #[must_use]
     pub fn file<Filelike: IntoUnsafeFile + Read + Seek>(filelike: Filelike) -> Self {
@@ -174,8 +174,8 @@ impl FileReader {
     }
 }
 
-impl FileWriter {
-    /// Convert a `File` into a `FileWriter`.
+impl RangeWriter {
+    /// Convert a `File` into a `RangeWriter`.
     ///
     /// The file must not be opened in [append mode].
     ///
@@ -196,7 +196,7 @@ impl FileWriter {
                 !posish::fs::getfl(&file)
                     .unwrap()
                     .contains(posish::fs::OFlags::APPEND),
-                "FileWriter doesn't support files opened with O_APPEND"
+                "RangeWriter doesn't support files opened with O_APPEND"
             );
         }
         #[cfg(windows)]
@@ -205,7 +205,7 @@ impl FileWriter {
                 (winx::file::query_access_information(file.as_raw_handle()).unwrap()
                     & winx::file::AccessMode::FILE_APPEND_DATA)
                     == winx::file::AccessMode::FILE_APPEND_DATA,
-                "FileWriter doesn't support files opened with FILE_APPEND_DATA"
+                "RangeWriter doesn't support files opened with FILE_APPEND_DATA"
             );
         }
 
@@ -213,8 +213,8 @@ impl FileWriter {
     }
 }
 
-impl FileEditor {
-    /// Convert a `File` into a `FileEditor`.
+impl RangeEditor {
+    /// Convert a `File` into a `RangeEditor`.
     #[inline]
     #[must_use]
     pub fn file<Filelike: IntoUnsafeFile + Read + Write + Seek>(filelike: Filelike) -> Self {
@@ -234,7 +234,7 @@ impl FileEditor {
     }
 }
 
-impl MinimalFile for FileReader {
+impl MinimalFile for RangeReader {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -246,7 +246,7 @@ impl MinimalFile for FileReader {
     }
 }
 
-impl MinimalFile for FileWriter {
+impl MinimalFile for RangeWriter {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -258,7 +258,7 @@ impl MinimalFile for FileWriter {
     }
 }
 
-impl MinimalFile for FileEditor {
+impl MinimalFile for RangeEditor {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -270,7 +270,7 @@ impl MinimalFile for FileEditor {
     }
 }
 
-impl ReadAt for FileReader {
+impl ReadAt for RangeReader {
     #[inline]
     fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
         filelike::read_at(self, buf, offset)
@@ -303,7 +303,7 @@ impl ReadAt for FileReader {
     }
 }
 
-impl ReadAt for FileEditor {
+impl ReadAt for RangeEditor {
     #[inline]
     fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
         filelike::read_at(self, buf, offset)
@@ -336,7 +336,7 @@ impl ReadAt for FileEditor {
     }
 }
 
-impl WriteAt for FileWriter {
+impl WriteAt for RangeWriter {
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
     }
@@ -378,7 +378,7 @@ impl WriteAt for FileWriter {
     }
 }
 
-impl WriteAt for FileEditor {
+impl WriteAt for RangeEditor {
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
     }
@@ -778,7 +778,7 @@ impl WriteAt for async_std::fs::File {
 }
 
 #[cfg(not(windows))]
-impl AsRawFd for FileReader {
+impl AsRawFd for RangeReader {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
         self.file.as_raw_fd()
@@ -786,7 +786,7 @@ impl AsRawFd for FileReader {
 }
 
 #[cfg(windows)]
-impl AsRawHandle for FileReader {
+impl AsRawHandle for RangeReader {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()
@@ -794,7 +794,7 @@ impl AsRawHandle for FileReader {
 }
 
 #[cfg(not(windows))]
-impl AsRawFd for FileWriter {
+impl AsRawFd for RangeWriter {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
         self.file.as_raw_fd()
@@ -802,7 +802,7 @@ impl AsRawFd for FileWriter {
 }
 
 #[cfg(windows)]
-impl AsRawHandle for FileWriter {
+impl AsRawHandle for RangeWriter {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()
@@ -810,7 +810,7 @@ impl AsRawHandle for FileWriter {
 }
 
 #[cfg(not(windows))]
-impl AsRawFd for FileEditor {
+impl AsRawFd for RangeEditor {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
         self.file.as_raw_fd()
@@ -818,7 +818,7 @@ impl AsRawFd for FileEditor {
 }
 
 #[cfg(windows)]
-impl AsRawHandle for FileEditor {
+impl AsRawHandle for RangeEditor {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()

@@ -1,7 +1,7 @@
 //! Random-access I/O
 //!
-//! For a starting point, see [`FileReader`] and [`FileWriter`] for input and
-//! output. There's also [`FileEditor`] for combination input and output.
+//! For a starting point, see [`RangeReader`] and [`RangeWriter`] for input and
+//! output. There's also [`RangeEditor`] for combination input and output.
 
 #![deny(missing_docs)]
 #![cfg_attr(can_vector, feature(can_vector))]
@@ -22,7 +22,7 @@ pub mod filelike {
     // We can't use Windows' `read_at` or `write_at` here because it isn't able to
     // extend the length of a file we can't `reopen` (such as temporary files).
     // However, while `FileIoExt` can't use `seek_write` because it mutates the
-    // current position, here we *can* use plain `seek_write` because `FileEditor`
+    // current position, here we *can* use plain `seek_write` because `RangeEditor`
     // doesn't expose the current position.
     #[cfg(not(windows))]
     pub use crate::posish::*;
@@ -31,7 +31,7 @@ pub mod filelike {
 }
 
 pub use files::{
-    EditAt, FileEditor, FileReader, FileWriter, Metadata, MinimalFile, ReadAt, WriteAt,
+    EditAt, Metadata, MinimalFile, RangeEditor, RangeReader, RangeWriter, ReadAt, WriteAt,
 };
 
 pub use system_interface::fs::Advice;
