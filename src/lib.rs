@@ -8,7 +8,7 @@
 #![cfg_attr(write_all_vectored, feature(write_all_vectored))]
 
 mod borrow_streamer;
-mod files;
+mod ranges;
 #[cfg(feature = "io-streams")]
 mod own_streamer;
 #[cfg(not(windows))]
@@ -30,6 +30,6 @@ pub mod filelike {
     pub use crate::windows::*;
 }
 
-pub use files::{EditAt, Metadata, Range, RangeEditor, RangeReader, RangeWriter, ReadAt, WriteAt};
+pub use ranges::{EditAt, Metadata, Range, RangeEditor, RangeReader, RangeWriter, ReadAt, WriteAt};
 
 pub use system_interface::fs::Advice;
