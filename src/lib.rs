@@ -1,7 +1,16 @@
 //! Random-access I/O
 //!
-//! For a starting point, see [`RangeReader`] and [`RangeWriter`] for input and
-//! output. There's also [`RangeEditor`] for combination input and output.
+//! This crate defines [`ReadAt`], [`WriteAt`], and [`EditAt`] traits which
+//! define interfaces to random-access or seekable devices, such as normal
+//! files, block devices, disk partitions, and memory buffers.
+//!
+//! It also defines [`RangeReader`], [`RangeWriter`], and [`RangeEditor`] types
+//! which implement the above traits and and can be constructed from any
+//! file-like type.  On Posix-ish platforms, including limited support for
+//! WASI, these types just contain a single file descriptor (and implement
+//! [`AsRawFd`]), plus any resources needed to safely hold the file descriptor
+//! live. On Windows, they contain a single file handle (and implement
+//! [`AsRawHandle`]).
 
 #![deny(missing_docs)]
 #![cfg_attr(can_vector, feature(can_vector))]
