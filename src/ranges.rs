@@ -243,9 +243,9 @@ impl RangeEditor {
     /// manner of a range.
     #[inline]
     pub fn anonymous() -> io::Result<Self> {
-        let file = create_anonymous()?;
+        let unsafe_file = create_anonymous()?;
         Ok(Self {
-            file: unsafe { fs::File::from_unsafe_file(file) },
+            file: unsafe { fs::File::from_unsafe_file(unsafe_file) },
         })
     }
 }
