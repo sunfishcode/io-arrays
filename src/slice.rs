@@ -12,7 +12,7 @@ impl Range for [u8] {
     fn metadata(&self) -> io::Result<Metadata> {
         Ok(Metadata {
             len: self.len().try_into().unwrap(),
-            #[cfg(unix)]
+            #[cfg(not(target_os = "wasi"))]
             blksize: page_size::get().try_into().unwrap(),
             // Hard-code the size here pending
             // <https://github.com/Elzair/page_size_rs/pull/3>
