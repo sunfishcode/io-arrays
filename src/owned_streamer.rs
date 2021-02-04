@@ -5,6 +5,9 @@ use std::{
 };
 use system_interface::io::Peek;
 
+/// A [`Read`]/[`Write`]/[`Peek`] implementation that streams through a
+/// [`Range`] that it owns.
+///
 /// In POSIX, `dup` produces a new file descriptor which shares a file
 /// description with the original file descriptor, and the file
 /// description includes the current position. In order to have independent
