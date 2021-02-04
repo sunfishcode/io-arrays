@@ -5,31 +5,35 @@ use std::{
 };
 use system_interface::io::Peek;
 
-pub(crate) struct BorrowStreamer<'file, File> {
-    inner: &'file File,
+/// A [`Read`]/[`Peek`] implementation that streams through a [`Range`] that it
+/// borrows.
+pub(crate) struct BorrowStreamer<'range, Range> {
+    inner: &'range Range,
     pos: u64,
 }
 
-pub(crate) struct BorrowStreamerMut<'file, File> {
-    inner: &'file mut File,
+/// A [`Read`]/[`Write`]/[`Peek`] implementation that streams through a
+/// [`Range`] that it borrows mutably.
+pub(crate) struct BorrowStreamerMut<'range, Range> {
+    inner: &'range mut Range,
     pos: u64,
 }
 
-impl<'file, File> BorrowStreamer<'file, File> {
+impl<'range, Range> BorrowStreamer<'range, Range> {
     #[inline]
-    pub(crate) fn new(inner: &'file File, pos: u64) -> Self {
+    pub(crate) fn new(inner: &'range Range, pos: u64) -> Self {
         Self { inner, pos }
     }
 }
 
-impl<'file, File> BorrowStreamerMut<'file, File> {
+impl<'range, Range> BorrowStreamerMut<'range, Range> {
     #[inline]
-    pub(crate) fn new(inner: &'file mut File, pos: u64) -> Self {
+    pub(crate) fn new(inner: &'range mut Range, pos: u64) -> Self {
         Self { inner, pos }
     }
 }
 
-impl<'file, File: ReadAt> Read for BorrowStreamer<'file, File> {
+impl<'range, Range: ReadAt> Read for BorrowStreamer<'range, Range> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -82,14 +86,74 @@ impl<'file, File: ReadAt> Read for BorrowStreamer<'file, File> {
     }
 }
 
-impl<'file, File: ReadAt> Peek for BorrowStreamer<'file, File> {
+impl<'range, Range: ReadAt> Peek for BorrowStreamer<'range, Range> {
     #[inline]
     fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read_at(buf, self.pos)
     }
 }
 
-impl<'file, File: WriteAt> Write for BorrowStreamerMut<'file, File> {
+impl<'range, Range: ReadAt> Read for BorrowStreamerMut<'range, Range> {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let _new_pos = self
+            .pos
+            .checked_add(buf.len() as u64)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "position overflow"))?;
+        let n = self.inner.read_at(buf, self.pos)?;
+        self.pos += n as u64;
+        Ok(n)
+    }
+
+    #[inline]
+    fn read_vectored(&mut self, bufs: &mut [IoSliceMut]) -> io::Result<usize> {
+        let mut new_pos = self.pos;
+        for buf in bufs.iter() {
+            new_pos = new_pos
+                .checked_add(buf.len() as u64)
+                .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "position overflow"))?;
+        }
+        let n = self.inner.read_vectored_at(bufs, self.pos)?;
+        self.pos += n as u64;
+        Ok(n)
+    }
+
+    #[cfg(can_vector)]
+    #[inline]
+    fn is_read_vectored(&self) -> bool {
+        self.inner.is_read_vectored_at()
+    }
+
+    #[inline]
+    fn read_to_end(&mut self, _buf: &mut Vec<u8>) -> io::Result<usize> {
+        todo!("BorrowStreamer::read_to_end")
+    }
+
+    #[inline]
+    fn read_to_string(&mut self, _buf: &mut String) -> io::Result<usize> {
+        todo!("BorrowStreamer::read_to_string")
+    }
+
+    #[inline]
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        let new_pos = self
+            .pos
+            .checked_add(buf.len() as u64)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "position overflow"))?;
+        let _: () = self.inner.read_exact_at(buf, self.pos)?;
+        self.pos = new_pos;
+        Ok(())
+    }
+}
+
+impl<'range, Range: ReadAt> Peek for BorrowStreamerMut<'range, Range> {
+    #[inline]
+    fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read_at(buf, self.pos)
+    }
+}
+
+impl<'range, Range: WriteAt> Write for BorrowStreamerMut<'range, Range> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let _new_pos = self
