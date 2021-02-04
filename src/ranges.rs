@@ -47,7 +47,7 @@ impl Metadata {
 /// This is a base trait that [`ReadAt`], [`WriteAt`], and [`EditAt`] all
 /// share.
 pub trait Range {
-    /// Return the `Metadata` for the range. This is similar to
+    /// Return the [`Metadata`] for the range. This is similar to
     /// [`std::fs::File::metadata`], though it returns fewer fields since the
     /// underlying device may not be an actual filesystem inode.
     fn metadata(&self) -> io::Result<Metadata>;
@@ -156,13 +156,13 @@ pub struct RangeReader {
     file: fs::File,
 }
 
-/// A random-access output source.
+/// A random-access output sink.
 #[derive(Debug)]
 pub struct RangeWriter {
     file: fs::File,
 }
 
-/// A random-access input and output source.
+/// A random-access input source and output sink.
 #[derive(Debug)]
 pub struct RangeEditor {
     file: fs::File,

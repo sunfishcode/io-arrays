@@ -37,7 +37,7 @@ pub use ranges::{EditAt, Metadata, Range, RangeEditor, RangeReader, RangeWriter,
 /// This is a re-export of [`system_interface::fs::Advice`].
 pub use system_interface::fs::Advice;
 
-/// Functions for custom implementations of `ReadAt` and `WriteAt` for
+/// Functions for custom implementations of [`ReadAt`] and [`WriteAt`] for
 /// file-like types.
 pub mod filelike {
     // We can't use Windows' `read_at` or `write_at` here because it isn't able to
