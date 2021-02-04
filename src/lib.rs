@@ -8,11 +8,11 @@
 #![cfg_attr(write_all_vectored, feature(write_all_vectored))]
 
 mod borrow_streamer;
-mod ranges;
 #[cfg(feature = "io-streams")]
 mod own_streamer;
 #[cfg(not(windows))]
 mod posish;
+mod ranges;
 mod slice;
 #[cfg(windows)]
 mod windows;
