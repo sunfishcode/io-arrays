@@ -1,5 +1,5 @@
 //! Windows implementations of [`ReadAt`] and [`WriteAt`] functions for
-//! file-like types which implement [`AsUnsafeFile`].
+//! file-like types which implement [`AsUnsafeFile`] on Windows.
 //!
 //! These can use `seek_read`/`seek_write` because the file's current position
 //! is not exposed.
@@ -32,18 +32,14 @@ pub fn metadata<Filelike: AsUnsafeFile>(filelike: &Filelike) -> io::Result<Metad
         Metadata {
             len: meta.len(),
 
-            #[cfg(not(windows))]
-            blksize: meta.blksize(),
-
             // Windows doesn't have a convenient way to query this, but
             // it often uses this specific value.
-            #[cfg(windows)]
             blksize: 0x1000,
         }
     })
 }
 
-/// Implement [`crate::Range::avise`].
+/// Implement [`crate::Range::advise`].
 #[inline]
 pub fn advise<Filelike: AsUnsafeFile>(
     filelike: &Filelike,

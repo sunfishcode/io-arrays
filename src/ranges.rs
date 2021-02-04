@@ -353,6 +353,7 @@ impl ReadAt for RangeEditor {
 }
 
 impl WriteAt for RangeWriter {
+    #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
     }
@@ -395,6 +396,7 @@ impl WriteAt for RangeWriter {
 }
 
 impl WriteAt for RangeEditor {
+    #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
     }
@@ -482,6 +484,7 @@ impl ReadAt for fs::File {
 }
 
 impl WriteAt for fs::File {
+    #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
     }
@@ -572,6 +575,7 @@ impl ReadAt for cap_std::fs::File {
 
 #[cfg(feature = "cap-std")]
 impl WriteAt for cap_std::fs::File {
+    #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
     }
@@ -662,6 +666,7 @@ impl ReadAt for cap_async_std::fs::File {
 
 #[cfg(feature = "cap-async-std")]
 impl WriteAt for cap_async_std::fs::File {
+    #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
     }
@@ -752,6 +757,7 @@ impl ReadAt for async_std::fs::File {
 
 #[cfg(feature = "async-std")]
 impl WriteAt for async_std::fs::File {
+    #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
     }

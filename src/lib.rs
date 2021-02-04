@@ -20,6 +20,7 @@
 #![cfg_attr(write_all_vectored, feature(write_all_vectored))]
 
 mod borrow_streamer;
+mod files;
 #[cfg(feature = "io-streams")]
 mod own_streamer;
 #[cfg(not(windows))]
@@ -44,8 +45,21 @@ pub mod filelike {
     // However, while `FileIoExt` can't use `seek_write` because it mutates the
     // current position, here we *can* use plain `seek_write` because `RangeEditor`
     // doesn't expose the current position.
+    pub use crate::files::{advise, copy_from, set_len};
+    #[cfg(all(not(windows), feature = "io-streams"))]
+    pub use crate::posish::read_via_stream_at;
     #[cfg(not(windows))]
-    pub use crate::posish::*;
+    pub use crate::posish::{
+        is_read_vectored_at, is_write_vectored_at, metadata, read_at, read_exact_at,
+        read_exact_vectored_at, read_vectored_at, write_all_at, write_all_vectored_at, write_at,
+        write_vectored_at,
+    };
+    #[cfg(all(windows, feature = "io-streams"))]
+    pub use crate::windows::read_via_stream_at;
     #[cfg(windows)]
-    pub use crate::windows::*;
+    pub use crate::windows::{
+        is_read_vectored_at, is_write_vectored_at, metadata, read_at, read_exact_at,
+        read_exact_vectored_at, read_vectored_at, read_via_stream_at, write_all_at,
+        write_all_vectored_at, write_at, write_vectored_at,
+    };
 }
