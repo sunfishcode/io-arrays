@@ -14,7 +14,7 @@ use std::{
 use system_interface::fs::FileIoExt;
 use unsafe_io::{AsUnsafeFile, FromUnsafeFile, IntoUnsafeFile, UnsafeFile};
 
-/// Metadata information about a file.
+/// Metadata information about a range.
 pub struct Metadata {
     pub(crate) len: u64,
     pub(crate) blksize: u64,
@@ -22,14 +22,14 @@ pub struct Metadata {
 
 #[allow(clippy::len_without_is_empty)]
 impl Metadata {
-    /// Returns the size of the file, in bytes, this metadata is for.
+    /// Returns the size of the range, in bytes, this metadata is for.
     #[inline]
     #[must_use]
     pub const fn len(&self) -> u64 {
         self.len
     }
 
-    /// Returns the block size for filesystem I/O.
+    /// Returns the block size for I/O.
     #[inline]
     #[must_use]
     pub const fn blksize(&self) -> u64 {
@@ -38,10 +38,10 @@ impl Metadata {
 }
 
 /// A minimal base trait for range I/O. Defines operations common to all kinds
-/// of random-access devices that fit the "file" concept, including normal
+/// of random-access devices that fit the "range" concept, including normal
 /// files, block devices, and in-memory buffers.
 pub trait Range {
-    /// Return the `Metadata` for the file. This is similar to
+    /// Return the `Metadata` for the range. This is similar to
     /// `std::fs::File::metadata`, though it returns fewer fields since the
     /// underlying device may not be an actual filesystem inode.
     fn metadata(&self) -> io::Result<Metadata>;
@@ -50,7 +50,7 @@ pub trait Range {
     fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()>;
 }
 
-/// A trait for reading from files.
+/// A trait for reading from ranges.
 ///
 /// Unlike `std::io::Read`, `ReadAt`'s functions take a `&self` rather than a
 /// `&mut self`, since they don't have a current position to mutate.
@@ -83,12 +83,12 @@ pub trait ReadAt: Range {
     /// Determines if `Self` has an efficient `read_vectored_at` implementation.
     fn is_read_vectored_at(&self) -> bool;
 
-    /// Create a `StreamReader` which reads from the file at the given offset.
+    /// Create a `StreamReader` which reads from the range at the given offset.
     #[cfg(feature = "io-streams")]
     fn read_via_stream_at(&self, offset: u64) -> io::Result<StreamReader>;
 }
 
-/// A trait for writing to files.
+/// A trait for writing to ranges.
 pub trait WriteAt: Range {
     /// Writes a number of bytes starting from a given offset.
     ///
@@ -126,12 +126,12 @@ pub trait WriteAt: Range {
         len: u64,
     ) -> io::Result<u64>;
 
-    /// Truncates or extends the underlying file, updating the size of this
-    /// file to become `size`.
+    /// Truncates or extends the underlying range, updating the size of this
+    /// range to become `size`.
     fn set_len(&mut self, size: u64) -> io::Result<()>;
 }
 
-/// A trait for reading and writing to files.
+/// A trait for reading and writing to ranges.
 pub trait EditAt: ReadAt + WriteAt {}
 
 /// A random-access input source.
@@ -163,7 +163,7 @@ impl RangeReader {
     }
 
     /// Copy a slice of bytes into a memory buffer to allow it to be accessed
-    /// in the manner of a file.
+    /// in the manner of a range.
     #[inline]
     pub fn bytes(bytes: &[u8]) -> io::Result<Self> {
         let unsafe_file = create_anonymous()?;
