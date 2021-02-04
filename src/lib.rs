@@ -11,6 +11,9 @@
 //! [`AsRawFd`]), plus any resources needed to safely hold the file descriptor
 //! live. On Windows, they contain a single file handle (and implement
 //! [`AsRawHandle`]).
+//!
+//! [`AsRawFd`]: https://doc.rust-lang.org/std/os/unix/io/trait.AsRawFd.html
+//! [`AsRawHandle`]: https://doc.rust-lang.org/std/os/windows/io/trait.AsRawHandle.html
 
 #![deny(missing_docs)]
 #![cfg_attr(can_vector, feature(can_vector))]
@@ -26,7 +29,15 @@ mod slice;
 #[cfg(windows)]
 mod windows;
 
-/// Functions for implementing `ReadAt` and `WriteAt` for file-like types.
+pub use ranges::{EditAt, Metadata, Range, RangeEditor, RangeReader, RangeWriter, ReadAt, WriteAt};
+
+/// Advice to pass to [`Range::advise`] to describe an expected access pattern.
+///
+/// This is a re-export of [`system_interface::fs::Advice`].
+pub use system_interface::fs::Advice;
+
+/// Functions for custom implementations of `ReadAt` and `WriteAt` for
+/// file-like types.
 pub mod filelike {
     // We can't use Windows' `read_at` or `write_at` here because it isn't able to
     // extend the length of a file we can't `reopen` (such as temporary files).
@@ -38,7 +49,3 @@ pub mod filelike {
     #[cfg(windows)]
     pub use crate::windows::*;
 }
-
-pub use ranges::{EditAt, Metadata, Range, RangeEditor, RangeReader, RangeWriter, ReadAt, WriteAt};
-
-pub use system_interface::fs::Advice;

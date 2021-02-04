@@ -15,6 +15,9 @@ use system_interface::fs::FileIoExt;
 use unsafe_io::{AsUnsafeFile, FromUnsafeFile, IntoUnsafeFile, UnsafeFile};
 
 /// Metadata information about a range.
+///
+/// This is somewhat analogous to [`std::fs::Metadata`], however it only
+/// includes a few fields, since ranges are more abstract than files.
 pub struct Metadata {
     pub(crate) len: u64,
     pub(crate) blksize: u64,
@@ -40,13 +43,18 @@ impl Metadata {
 /// A minimal base trait for range I/O. Defines operations common to all kinds
 /// of random-access devices that fit the "range" concept, including normal
 /// files, block devices, and in-memory buffers.
+///
+/// This is a base trait that [`ReadAt`], [`WriteAt`], and [`EditAt`] all
+/// share.
 pub trait Range {
     /// Return the `Metadata` for the range. This is similar to
-    /// `std::fs::File::metadata`, though it returns fewer fields since the
+    /// [`std::fs::File::metadata`], though it returns fewer fields since the
     /// underlying device may not be an actual filesystem inode.
     fn metadata(&self) -> io::Result<Metadata>;
 
     /// Announce the expected access pattern of the data at the given offset.
+    ///
+    /// This is purely a performance hint and has no semantic effect.
     fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()>;
 }
 
