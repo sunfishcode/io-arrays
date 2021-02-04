@@ -1,6 +1,6 @@
 [package]
 name = "io-ranges"
-version = "0.1.2"
+version = "0.1.3-alpha.0"
 description = "Random-access I/O"
 authors = ["Dan Gohman <dev@sunfishcode.online>"]
 edition = "2018"
