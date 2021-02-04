@@ -19,8 +19,11 @@ cap-fs-ext = "0.13.0"
 cap-std = { version = "0.13.0", optional = true }
 cap-async-std = { version = "0.13.0", optional = true }
 io-streams = { version = "0.1.0", optional = true }
-page_size = "0.4.2"
 system-interface = "0.6.0"
+unsafe-io = { version = "0.3.0" }
+
+[target.'cfg(not(target_os = "wasi"))'.dependencies]
+page_size = "0.4.2"
 unsafe-io = { version = "0.3.0", features = ["os_pipe"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "linux")))'.dependencies]

@@ -18,7 +18,7 @@ devices, disk partitions, and memory buffers.
 
 It also defines [`RangeReader`], [`RangeWriter`], and [`RangeEditor`] types which
 implement the above traits and and can be constructed from any file-like type.
-On Posix-ish platforms, including limited support for WASI, these types just
+On Posix-ish platforms, with support for WASI in development, these types just
 contain a single file descriptor (and implement [`AsRawFd`]), plus any
 resources needed to safely hold the file descriptor live. On Windows, they
 contain a single file handle (and implement [`AsRawHandle`]).
