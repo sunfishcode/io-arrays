@@ -1,5 +1,7 @@
-//! Functions for implementing `ReadAt` and `WriteAt` for file-like types which
-//! implement `AsUnsafeHandle`.
+//! Functions for implementing [`ReadAt`] and [`WriteAt`] for file-like types
+//! which implement [`AsUnsafeFile`].
+//!
+//! [`WriteAt`]: crate::WriteAt
 
 use crate::{
     borrow_streamer::{BorrowStreamer, BorrowStreamerMut},

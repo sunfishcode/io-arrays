@@ -1,4 +1,5 @@
-//! Windows implementations of `ReadAt` and `WriteAt` functions.
+//! Windows implementations of [`ReadAt`] and [`WriteAt`] functions for
+//! file-like types which implement [`AsUnsafeFile`].
 //!
 //! These can use `seek_read`/`seek_write` because the file's current position
 //! is not exposed.

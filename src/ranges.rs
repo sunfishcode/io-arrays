@@ -52,6 +52,9 @@ pub trait Range {
 
 /// A trait for reading from ranges.
 ///
+/// This is similar to [`std::io::Read`] except all of the reading functions
+/// take an `offset` parameter, specifying a position in the range to read at.
+///
 /// Unlike `std::io::Read`, `ReadAt`'s functions take a `&self` rather than a
 /// `&mut self`, since they don't have a current position to mutate.
 pub trait ReadAt: Range {
@@ -89,6 +92,9 @@ pub trait ReadAt: Range {
 }
 
 /// A trait for writing to ranges.
+///
+/// This is similar to [`std::io::Write`] except all of the reading functions
+/// take an `offset` parameter, specifying a position in the range to read at.
 pub trait WriteAt: Range {
     /// Writes a number of bytes starting from a given offset.
     ///
@@ -132,6 +138,8 @@ pub trait WriteAt: Range {
 }
 
 /// A trait for reading and writing to ranges.
+///
+/// This trait simply combines [`ReadAt`] and [`WriteAt`].
 pub trait EditAt: ReadAt + WriteAt {}
 
 /// A random-access input source.
@@ -224,7 +232,7 @@ impl RangeEditor {
     }
 
     /// Create a temporary anonymous resource which can be accessed in the
-    /// manner of a file.
+    /// manner of a range.
     #[inline]
     pub fn anonymous() -> io::Result<Self> {
         let file = create_anonymous()?;
