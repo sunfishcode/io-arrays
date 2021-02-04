@@ -9,19 +9,19 @@ use system_interface::io::Peek;
 /// description with the original file descriptor, and the file
 /// description includes the current position. In order to have independent
 /// streams through a file, we track our own current position.
-pub(crate) struct OwnStreamer<Range> {
+pub(crate) struct OwnedStreamer<Range> {
     inner: Range,
     pos: u64,
 }
 
-impl<Range> OwnStreamer<Range> {
+impl<Range> OwnedStreamer<Range> {
     #[inline]
     pub(crate) fn new(inner: Range, pos: u64) -> Self {
         Self { inner, pos }
     }
 }
 
-impl<Range: ReadAt> Read for OwnStreamer<Range> {
+impl<Range: ReadAt> Read for OwnedStreamer<Range> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -54,12 +54,12 @@ impl<Range: ReadAt> Read for OwnStreamer<Range> {
 
     #[inline]
     fn read_to_end(&mut self, _buf: &mut Vec<u8>) -> io::Result<usize> {
-        todo!("OwnStreamer::read_to_end")
+        todo!("OwnedStreamer::read_to_end")
     }
 
     #[inline]
     fn read_to_string(&mut self, _buf: &mut String) -> io::Result<usize> {
-        todo!("OwnStreamer::read_to_string")
+        todo!("OwnedStreamer::read_to_string")
     }
 
     #[inline]
@@ -74,14 +74,14 @@ impl<Range: ReadAt> Read for OwnStreamer<Range> {
     }
 }
 
-impl<Range: ReadAt> Peek for OwnStreamer<Range> {
+impl<Range: ReadAt> Peek for OwnedStreamer<Range> {
     #[inline]
     fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read_at(buf, self.pos)
     }
 }
 
-impl<Range: WriteAt> Write for OwnStreamer<Range> {
+impl<Range: WriteAt> Write for OwnedStreamer<Range> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let _new_pos = self

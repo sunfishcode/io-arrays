@@ -22,7 +22,7 @@
 mod borrow_streamer;
 mod files;
 #[cfg(feature = "io-streams")]
-mod own_streamer;
+mod owned_streamer;
 #[cfg(not(windows))]
 mod posish;
 mod ranges;

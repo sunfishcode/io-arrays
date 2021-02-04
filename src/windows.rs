@@ -17,7 +17,7 @@ use std::{
 use unsafe_io::AsUnsafeFile;
 #[cfg(feature = "io-streams")]
 use {
-    crate::own_streamer::OwnStreamer,
+    crate::owned_streamer::OwnedStreamer,
     cap_fs_ext::{OpenOptions, Reopen},
     io_streams::StreamReader,
     std::io::SeekFrom,
@@ -136,7 +136,7 @@ pub fn read_via_stream_at<Filelike: AsUnsafeFile>(
     }
 
     // Otherwise, manually stream the file.
-    StreamReader::piped_thread(Box::new(OwnStreamer::new(
+    StreamReader::piped_thread(Box::new(OwnedStreamer::new(
         filelike.as_file_view().try_clone()?,
         offset,
     )))
