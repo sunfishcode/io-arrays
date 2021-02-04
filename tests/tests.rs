@@ -139,7 +139,7 @@ fn test_write_nothing_past_end() -> anyhow::Result<()> {
     Ok(())
 }
 
-// Test that trucating the file and re-extending it zero-fills.
+// Test that truncating the file and re-extending it zero-fills.
 #[test]
 fn test_various_edits() -> anyhow::Result<()> {
     let dir = tmpdir();

@@ -1,4 +1,4 @@
-//! Common code for Posixh-ish and Windows platforms for implementing
+//! Common code for Posix-ish and Windows platforms for implementing
 //! [`ReadAt`] and [`WriteAt`] for file-like types which implement
 //! [`AsUnsafeFile`].
 //!

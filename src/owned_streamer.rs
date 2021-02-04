@@ -148,7 +148,7 @@ impl<Range: WriteAt> Write for OwnedStreamer<Range> {
     }
 
     fn write_fmt(&mut self, fmt: Arguments) -> io::Result<()> {
-        // TODO: Use `to_str` when it's stablized: https://github.com/rust-lang/rust/issues/74442
+        // TODO: Use `to_str` when it's stabilized: https://github.com/rust-lang/rust/issues/74442
         self.write_all(fmt.to_string().as_bytes())
     }
 }

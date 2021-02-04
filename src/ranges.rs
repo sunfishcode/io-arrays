@@ -75,7 +75,7 @@ pub trait ReadAt: Range {
     /// [`std::os::unix::fs::FileExt::read_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.read_at
     fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize>;
 
-    /// Reads the exact number of byte required to fill buf from the given
+    /// Reads the exact number of byte required to fill `buf` from the given
     /// offset.
     ///
     /// This is similar to [`std::os::unix::fs::FileExt::read_exact_at`], except
