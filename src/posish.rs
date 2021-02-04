@@ -1,19 +1,17 @@
 //! Functions for implementing [`ReadAt`] and [`WriteAt`] for file-like types
 //! which implement [`AsUnsafeFile`] on Posix-ish platforms.
 //!
+//! [`ReadAt`]: crate::ReadAt
 //! [`WriteAt`]: crate::WriteAt
 
-use crate::{
-    borrow_streamer::{BorrowStreamer, BorrowStreamerMut},
-    Advice, Metadata, ReadAt,
-};
+use crate::Metadata;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "wasi")]
 use std::os::unix::fs::MetadataExt;
 use std::{
     fs,
-    io::{self, copy, IoSlice, IoSliceMut, Read},
+    io::{self, IoSlice, IoSliceMut},
 };
 use system_interface::fs::FileIoExt;
 use unsafe_io::AsUnsafeFile;

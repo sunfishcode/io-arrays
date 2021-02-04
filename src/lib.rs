@@ -59,7 +59,7 @@ pub mod filelike {
     #[cfg(windows)]
     pub use crate::windows::{
         is_read_vectored_at, is_write_vectored_at, metadata, read_at, read_exact_at,
-        read_exact_vectored_at, read_vectored_at, read_via_stream_at, write_all_at,
-        write_all_vectored_at, write_at, write_vectored_at,
+        read_exact_vectored_at, read_vectored_at, write_all_at, write_all_vectored_at, write_at,
+        write_vectored_at,
     };
 }

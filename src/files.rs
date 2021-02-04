@@ -6,23 +6,14 @@
 
 use crate::{
     borrow_streamer::{BorrowStreamer, BorrowStreamerMut},
-    Advice, Metadata, ReadAt,
+    Advice, ReadAt,
 };
 use std::{
-    convert::TryInto,
     fs,
-    io::{self, copy, IoSlice, IoSliceMut, Read},
-    slice,
+    io::{self, copy, Read},
 };
 use system_interface::fs::FileIoExt;
 use unsafe_io::AsUnsafeFile;
-#[cfg(feature = "io-streams")]
-use {
-    crate::own_streamer::OwnStreamer,
-    cap_fs_ext::{OpenOptions, Reopen},
-    io_streams::StreamReader,
-    std::io::SeekFrom,
-};
 
 /// Implement [`crate::Range::advise`].
 #[inline]
