@@ -42,7 +42,7 @@ cap-tempfile = "0.13.0"
 cap-std = "0.13.0"
 
 [features]
-default = []
+default = ["io-streams"]
 
 [badges]
 maintenance = { status = "actively-developed" }
