@@ -147,8 +147,11 @@ pub trait WriteAt: Range {
 
 /// A trait for reading and writing to ranges.
 ///
-/// This trait simply combines [`ReadAt`] and [`WriteAt`].
+/// This trait simply combines [`ReadAt`] and [`WriteAt`] and has a blanket
+/// implementation for any type that implements both.
 pub trait EditAt: ReadAt + WriteAt {}
+
+impl<T: ReadAt + WriteAt> EditAt for T {}
 
 /// A random-access input source.
 #[derive(Debug)]
