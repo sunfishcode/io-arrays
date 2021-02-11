@@ -3,7 +3,7 @@
 
 use cap_std::fs::OpenOptions;
 use cap_tempfile::{tempdir, TempDir};
-use io_ranges::{Range, RangeEditor, RangeReader, RangeWriter, ReadAt, WriteAt};
+use io_arrays::{Array, ArrayEditor, ArrayReader, ArrayWriter, ReadAt, WriteAt};
 use std::io::{Read, Write};
 
 #[allow(unused)]
@@ -22,8 +22,8 @@ fn test_small_copy() -> anyhow::Result<()> {
 
     // Test regular file I/O.
     {
-        let input = RangeReader::file(dir.open(in_txt)?);
-        let mut output = RangeWriter::file(dir.create(out_txt)?);
+        let input = ArrayReader::file(dir.open(in_txt)?);
+        let mut output = ArrayWriter::file(dir.create(out_txt)?);
         let meta = input.metadata()?;
         let len = meta.len();
         assert_eq!(len, 19);
@@ -50,12 +50,12 @@ fn test_streaming_read() -> anyhow::Result<()> {
     let mut in_file = dir.create(in_txt)?;
     write!(in_file, "XYZHello, world!")?;
 
-    let input = RangeReader::file(dir.open(in_txt)?);
+    let input = ArrayReader::file(dir.open(in_txt)?);
     let mut buf = Vec::new();
     input.read_via_stream_at(3)?.read_to_end(&mut buf)?;
     assert_eq!(&buf, b"Hello, world!");
 
-    let input = RangeReader::file(dir.open(in_txt)?);
+    let input = ArrayReader::file(dir.open(in_txt)?);
     let mut buf = Vec::new();
     input.read_via_stream_at(3)?.read_to_end(&mut buf)?;
     assert_eq!(&buf, b"Hello, world!");
@@ -65,7 +65,7 @@ fn test_streaming_read() -> anyhow::Result<()> {
 
 #[test]
 fn test_bytes() -> anyhow::Result<()> {
-    let reader = RangeReader::bytes(b"abcdefghij")?;
+    let reader = ArrayReader::bytes(b"abcdefghij")?;
     let mut buf = vec![0_u8; 4];
     reader.read_exact_at(&mut buf, 3)?;
     assert_eq!(buf, b"defg");
@@ -74,7 +74,7 @@ fn test_bytes() -> anyhow::Result<()> {
 
 #[test]
 fn test_anonymous() -> anyhow::Result<()> {
-    let mut editor = RangeEditor::anonymous()?;
+    let mut editor = ArrayEditor::anonymous()?;
     editor.write_all_at(b"0123456789", 5)?;
     let mut buf = vec![0_u8; 4];
     editor.read_exact_at(&mut buf, 8)?;
@@ -87,7 +87,7 @@ fn test_anonymous() -> anyhow::Result<()> {
 fn test_write_past_end() -> anyhow::Result<()> {
     let dir = tmpdir();
     let name = "file.txt";
-    let mut editor = RangeEditor::file(dir.open_with(
+    let mut editor = ArrayEditor::file(dir.open_with(
         name,
         OpenOptions::new().create_new(true).read(true).write(true),
     )?);
@@ -109,7 +109,7 @@ fn test_write_past_end() -> anyhow::Result<()> {
 fn test_read_past_end() -> anyhow::Result<()> {
     let dir = tmpdir();
     let name = "file.txt";
-    let mut editor = RangeEditor::file(dir.open_with(
+    let mut editor = ArrayEditor::file(dir.open_with(
         name,
         OpenOptions::new().create_new(true).read(true).write(true),
     )?);
@@ -130,7 +130,7 @@ fn test_read_past_end() -> anyhow::Result<()> {
 fn test_write_nothing_past_end() -> anyhow::Result<()> {
     let dir = tmpdir();
     let name = "file.txt";
-    let mut editor = RangeEditor::file(dir.open_with(
+    let mut editor = ArrayEditor::file(dir.open_with(
         name,
         OpenOptions::new().create_new(true).read(true).write(true),
     )?);
@@ -144,7 +144,7 @@ fn test_write_nothing_past_end() -> anyhow::Result<()> {
 fn test_various_edits() -> anyhow::Result<()> {
     let dir = tmpdir();
     let name = "file.txt";
-    let mut editor = RangeEditor::file(dir.open_with(
+    let mut editor = ArrayEditor::file(dir.open_with(
         name,
         OpenOptions::new().create_new(true).read(true).write(true),
     )?);

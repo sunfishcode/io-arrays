@@ -5,35 +5,35 @@ use std::{
 };
 use system_interface::io::Peek;
 
-/// A [`Read`]/[`Peek`] implementation that streams through a [`Range`] that it
+/// A [`Read`]/[`Peek`] implementation that streams through a [`Array`] that it
 /// borrows.
-pub(crate) struct BorrowStreamer<'range, Range> {
-    inner: &'range Range,
+pub(crate) struct BorrowStreamer<'array, Array> {
+    inner: &'array Array,
     pos: u64,
 }
 
 /// A [`Read`]/[`Write`]/[`Peek`] implementation that streams through a
-/// [`Range`] that it borrows mutably.
-pub(crate) struct BorrowStreamerMut<'range, Range> {
-    inner: &'range mut Range,
+/// [`Array`] that it borrows mutably.
+pub(crate) struct BorrowStreamerMut<'array, Array> {
+    inner: &'array mut Array,
     pos: u64,
 }
 
-impl<'range, Range> BorrowStreamer<'range, Range> {
+impl<'array, Array> BorrowStreamer<'array, Array> {
     #[inline]
-    pub(crate) fn new(inner: &'range Range, pos: u64) -> Self {
+    pub(crate) fn new(inner: &'array Array, pos: u64) -> Self {
         Self { inner, pos }
     }
 }
 
-impl<'range, Range> BorrowStreamerMut<'range, Range> {
+impl<'array, Array> BorrowStreamerMut<'array, Array> {
     #[inline]
-    pub(crate) fn new(inner: &'range mut Range, pos: u64) -> Self {
+    pub(crate) fn new(inner: &'array mut Array, pos: u64) -> Self {
         Self { inner, pos }
     }
 }
 
-impl<'range, Range: ReadAt> Read for BorrowStreamer<'range, Range> {
+impl<'array, Array: ReadAt> Read for BorrowStreamer<'array, Array> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -86,14 +86,14 @@ impl<'range, Range: ReadAt> Read for BorrowStreamer<'range, Range> {
     }
 }
 
-impl<'range, Range: ReadAt> Peek for BorrowStreamer<'range, Range> {
+impl<'array, Array: ReadAt> Peek for BorrowStreamer<'array, Array> {
     #[inline]
     fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read_at(buf, self.pos)
     }
 }
 
-impl<'range, Range: ReadAt> Read for BorrowStreamerMut<'range, Range> {
+impl<'array, Array: ReadAt> Read for BorrowStreamerMut<'array, Array> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -146,14 +146,14 @@ impl<'range, Range: ReadAt> Read for BorrowStreamerMut<'range, Range> {
     }
 }
 
-impl<'range, Range: ReadAt> Peek for BorrowStreamerMut<'range, Range> {
+impl<'array, Array: ReadAt> Peek for BorrowStreamerMut<'array, Array> {
     #[inline]
     fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read_at(buf, self.pos)
     }
 }
 
-impl<'range, Range: WriteAt> Write for BorrowStreamerMut<'range, Range> {
+impl<'array, Array: WriteAt> Write for BorrowStreamerMut<'array, Array> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let _new_pos = self

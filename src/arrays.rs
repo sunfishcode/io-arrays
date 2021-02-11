@@ -14,10 +14,10 @@ use std::{
 use system_interface::fs::FileIoExt;
 use unsafe_io::{AsUnsafeFile, FromUnsafeFile, IntoUnsafeFile, UnsafeFile};
 
-/// Metadata information about a range.
+/// Metadata information about an array.
 ///
 /// This is somewhat analogous to [`std::fs::Metadata`], however it only
-/// includes a few fields, since ranges are more abstract than files.
+/// includes a few fields, since arrays are more abstract than files.
 pub struct Metadata {
     pub(crate) len: u64,
     pub(crate) blksize: u64,
@@ -25,7 +25,7 @@ pub struct Metadata {
 
 #[allow(clippy::len_without_is_empty)]
 impl Metadata {
-    /// Returns the size of the range, in bytes, this metadata is for.
+    /// Returns the size of the array, in bytes, this metadata is for.
     #[inline]
     #[must_use]
     pub const fn len(&self) -> u64 {
@@ -40,14 +40,14 @@ impl Metadata {
     }
 }
 
-/// A minimal base trait for range I/O. Defines operations common to all kinds
-/// of random-access devices that fit the "range" concept, including normal
+/// A minimal base trait for array I/O. Defines operations common to all kinds
+/// of random-access devices that fit the "array" concept, including normal
 /// files, block devices, and in-memory buffers.
 ///
 /// This is a base trait that [`ReadAt`], [`WriteAt`], and [`EditAt`] all
 /// share.
-pub trait Range {
-    /// Return the [`Metadata`] for the range. This is similar to
+pub trait Array {
+    /// Return the [`Metadata`] for the array. This is similar to
     /// [`std::fs::File::metadata`], though it returns fewer fields since the
     /// underlying device may not be an actual filesystem inode.
     fn metadata(&self) -> io::Result<Metadata>;
@@ -58,14 +58,14 @@ pub trait Range {
     fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()>;
 }
 
-/// A trait for reading from ranges.
+/// A trait for reading from arrays.
 ///
 /// This is similar to [`std::io::Read`] except all of the reading functions
-/// take an `offset` parameter, specifying a position in the range to read at.
+/// take an `offset` parameter, specifying a position in the array to read at.
 ///
 /// Unlike `std::io::Read`, `ReadAt`'s functions take a `&self` rather than a
 /// `&mut self`, since they don't have a current position to mutate.
-pub trait ReadAt: Range {
+pub trait ReadAt: Array {
     /// Reads a number of bytes starting from a given offset.
     ///
     /// This is similar to [`std::os::unix::fs::FileExt::read_at`], except it
@@ -94,16 +94,16 @@ pub trait ReadAt: Range {
     /// Determines if `Self` has an efficient `read_vectored_at` implementation.
     fn is_read_vectored_at(&self) -> bool;
 
-    /// Create a `StreamReader` which reads from the range at the given offset.
+    /// Create a `StreamReader` which reads from the array at the given offset.
     #[cfg(feature = "io-streams")]
     fn read_via_stream_at(&self, offset: u64) -> io::Result<StreamReader>;
 }
 
-/// A trait for writing to ranges.
+/// A trait for writing to arrays.
 ///
 /// This is similar to [`std::io::Write`] except all of the reading functions
-/// take an `offset` parameter, specifying a position in the range to read at.
-pub trait WriteAt: Range {
+/// take an `offset` parameter, specifying a position in the array to read at.
+pub trait WriteAt: Array {
     /// Writes a number of bytes starting from a given offset.
     ///
     /// This is similar to [`std::os::unix::fs::FileExt::write_at`], except it
@@ -140,12 +140,12 @@ pub trait WriteAt: Range {
         len: u64,
     ) -> io::Result<u64>;
 
-    /// Truncates or extends the underlying range, updating the size of this
-    /// range to become `size`.
+    /// Truncates or extends the underlying array, updating the size of this
+    /// array to become `size`.
     fn set_len(&mut self, size: u64) -> io::Result<()>;
 }
 
-/// A trait for reading and writing to ranges.
+/// A trait for reading and writing to arrays.
 ///
 /// This trait simply combines [`ReadAt`] and [`WriteAt`] and has a blanket
 /// implementation for any type that implements both.
@@ -155,24 +155,24 @@ impl<T: ReadAt + WriteAt> EditAt for T {}
 
 /// A random-access input source.
 #[derive(Debug)]
-pub struct RangeReader {
+pub struct ArrayReader {
     file: fs::File,
 }
 
 /// A random-access output sink.
 #[derive(Debug)]
-pub struct RangeWriter {
+pub struct ArrayWriter {
     file: fs::File,
 }
 
 /// A random-access input source and output sink.
 #[derive(Debug)]
-pub struct RangeEditor {
+pub struct ArrayEditor {
     file: fs::File,
 }
 
-impl RangeReader {
-    /// Convert a `File` into a `RangeReader`.
+impl ArrayReader {
+    /// Convert a `File` into a `ArrayReader`.
     #[inline]
     #[must_use]
     pub fn file<Filelike: IntoUnsafeFile + Read + Seek>(filelike: Filelike) -> Self {
@@ -182,7 +182,7 @@ impl RangeReader {
     }
 
     /// Copy a slice of bytes into a memory buffer to allow it to be accessed
-    /// in the manner of a range.
+    /// in the manner of an array.
     #[inline]
     pub fn bytes(bytes: &[u8]) -> io::Result<Self> {
         let unsafe_file = create_anonymous()?;
@@ -193,8 +193,8 @@ impl RangeReader {
     }
 }
 
-impl RangeWriter {
-    /// Convert a `File` into a `RangeWriter`.
+impl ArrayWriter {
+    /// Convert a `File` into a `ArrayWriter`.
     ///
     /// The file must not be opened in [append mode].
     ///
@@ -215,7 +215,7 @@ impl RangeWriter {
                 !posish::fs::getfl(&file)
                     .unwrap()
                     .contains(posish::fs::OFlags::APPEND),
-                "RangeWriter doesn't support files opened with O_APPEND"
+                "ArrayWriter doesn't support files opened with O_APPEND"
             );
         }
         #[cfg(windows)]
@@ -224,7 +224,7 @@ impl RangeWriter {
                 (winx::file::query_access_information(file.as_raw_handle()).unwrap()
                     & winx::file::AccessMode::FILE_APPEND_DATA)
                     == winx::file::AccessMode::FILE_APPEND_DATA,
-                "RangeWriter doesn't support files opened with FILE_APPEND_DATA"
+                "ArrayWriter doesn't support files opened with FILE_APPEND_DATA"
             );
         }
 
@@ -232,8 +232,8 @@ impl RangeWriter {
     }
 }
 
-impl RangeEditor {
-    /// Convert a `File` into a `RangeEditor`.
+impl ArrayEditor {
+    /// Convert a `File` into a `ArrayEditor`.
     #[inline]
     #[must_use]
     pub fn file<Filelike: IntoUnsafeFile + Read + Write + Seek>(filelike: Filelike) -> Self {
@@ -243,7 +243,7 @@ impl RangeEditor {
     }
 
     /// Create a temporary anonymous resource which can be accessed in the
-    /// manner of a range.
+    /// manner of an array.
     #[inline]
     pub fn anonymous() -> io::Result<Self> {
         let unsafe_file = create_anonymous()?;
@@ -253,7 +253,7 @@ impl RangeEditor {
     }
 }
 
-impl Range for RangeReader {
+impl Array for ArrayReader {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -265,7 +265,7 @@ impl Range for RangeReader {
     }
 }
 
-impl Range for RangeWriter {
+impl Array for ArrayWriter {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -277,7 +277,7 @@ impl Range for RangeWriter {
     }
 }
 
-impl Range for RangeEditor {
+impl Array for ArrayEditor {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -289,7 +289,7 @@ impl Range for RangeEditor {
     }
 }
 
-impl ReadAt for RangeReader {
+impl ReadAt for ArrayReader {
     #[inline]
     fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
         filelike::read_at(self, buf, offset)
@@ -322,7 +322,7 @@ impl ReadAt for RangeReader {
     }
 }
 
-impl ReadAt for RangeEditor {
+impl ReadAt for ArrayEditor {
     #[inline]
     fn read_at(&self, buf: &mut [u8], offset: u64) -> io::Result<usize> {
         filelike::read_at(self, buf, offset)
@@ -355,7 +355,7 @@ impl ReadAt for RangeEditor {
     }
 }
 
-impl WriteAt for RangeWriter {
+impl WriteAt for ArrayWriter {
     #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
@@ -398,7 +398,7 @@ impl WriteAt for RangeWriter {
     }
 }
 
-impl WriteAt for RangeEditor {
+impl WriteAt for ArrayEditor {
     #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
@@ -441,7 +441,7 @@ impl WriteAt for RangeEditor {
     }
 }
 
-impl Range for fs::File {
+impl Array for fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -530,7 +530,7 @@ impl WriteAt for fs::File {
 }
 
 #[cfg(feature = "cap-std")]
-impl Range for cap_std::fs::File {
+impl Array for cap_std::fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -621,7 +621,7 @@ impl WriteAt for cap_std::fs::File {
 }
 
 #[cfg(feature = "cap-async-std")]
-impl Range for cap_async_std::fs::File {
+impl Array for cap_async_std::fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -712,7 +712,7 @@ impl WriteAt for cap_async_std::fs::File {
 }
 
 #[cfg(feature = "async-std")]
-impl Range for async_std::fs::File {
+impl Array for async_std::fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -803,7 +803,7 @@ impl WriteAt for async_std::fs::File {
 }
 
 #[cfg(not(windows))]
-impl AsRawFd for RangeReader {
+impl AsRawFd for ArrayReader {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
         self.file.as_raw_fd()
@@ -811,7 +811,7 @@ impl AsRawFd for RangeReader {
 }
 
 #[cfg(windows)]
-impl AsRawHandle for RangeReader {
+impl AsRawHandle for ArrayReader {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()
@@ -819,7 +819,7 @@ impl AsRawHandle for RangeReader {
 }
 
 #[cfg(not(windows))]
-impl AsRawFd for RangeWriter {
+impl AsRawFd for ArrayWriter {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
         self.file.as_raw_fd()
@@ -827,7 +827,7 @@ impl AsRawFd for RangeWriter {
 }
 
 #[cfg(windows)]
-impl AsRawHandle for RangeWriter {
+impl AsRawHandle for ArrayWriter {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()
@@ -835,7 +835,7 @@ impl AsRawHandle for RangeWriter {
 }
 
 #[cfg(not(windows))]
-impl AsRawFd for RangeEditor {
+impl AsRawFd for ArrayEditor {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
         self.file.as_raw_fd()
@@ -843,7 +843,7 @@ impl AsRawFd for RangeEditor {
 }
 
 #[cfg(windows)]
-impl AsRawHandle for RangeEditor {
+impl AsRawHandle for ArrayEditor {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()
@@ -854,7 +854,7 @@ impl AsRawHandle for RangeEditor {
 #[cfg(any(target_os = "android", target_os = "linux"))]
 fn create_anonymous() -> io::Result<UnsafeFile> {
     let flags = libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING;
-    let name = b"io_ranges anonymous file\0"
+    let name = b"io_arrays anonymous file\0"
         .as_ptr()
         .cast::<libc::c_char>();
     let fd = unsafe { memfd_create(name, flags) };

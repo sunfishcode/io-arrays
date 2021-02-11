@@ -15,7 +15,7 @@ use std::{
 use system_interface::fs::FileIoExt;
 use unsafe_io::AsUnsafeFile;
 
-/// Implement [`crate::Range::advise`].
+/// Implement [`crate::Array::advise`].
 #[inline]
 pub fn advise<Filelike: AsUnsafeFile>(
     filelike: &Filelike,

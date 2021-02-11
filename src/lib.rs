@@ -4,7 +4,7 @@
 //! define interfaces to random-access or seekable devices, such as normal
 //! files, block devices, disk partitions, and memory buffers.
 //!
-//! It also defines [`RangeReader`], [`RangeWriter`], and [`RangeEditor`] types
+//! It also defines [`ArrayReader`], [`ArrayWriter`], and [`ArrayEditor`] types
 //! which implement the above traits and and can be constructed from any
 //! file-like type.  On Posix-ish platforms, including limited support for
 //! WASI, these types just contain a single file descriptor (and implement
@@ -19,20 +19,20 @@
 #![cfg_attr(can_vector, feature(can_vector))]
 #![cfg_attr(write_all_vectored, feature(write_all_vectored))]
 
+mod arrays;
 mod borrow_streamer;
 mod files;
 #[cfg(feature = "io-streams")]
 mod owned_streamer;
 #[cfg(not(windows))]
 mod posish;
-mod ranges;
 mod slice;
 #[cfg(windows)]
 mod windows;
 
-pub use ranges::{EditAt, Metadata, Range, RangeEditor, RangeReader, RangeWriter, ReadAt, WriteAt};
+pub use arrays::{Array, ArrayEditor, ArrayReader, ArrayWriter, EditAt, Metadata, ReadAt, WriteAt};
 
-/// Advice to pass to [`Range::advise`] to describe an expected access pattern.
+/// Advice to pass to [`Array::advise`] to describe an expected access pattern.
 ///
 /// This is a re-export of [`system_interface::fs::Advice`].
 pub use system_interface::fs::Advice;
@@ -43,7 +43,7 @@ pub mod filelike {
     // We can't use Windows' `read_at` or `write_at` here because it isn't able to
     // extend the length of a file we can't `reopen` (such as temporary files).
     // However, while `FileIoExt` can't use `seek_write` because it mutates the
-    // current position, here we *can* use plain `seek_write` because `RangeEditor`
+    // current position, here we *can* use plain `seek_write` because `ArrayEditor`
     // doesn't expose the current position.
     pub use crate::files::{advise, copy_from, set_len};
     #[cfg(all(not(windows), feature = "io-streams"))]

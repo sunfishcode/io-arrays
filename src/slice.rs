@@ -1,4 +1,4 @@
-use crate::{borrow_streamer::BorrowStreamer, Advice, Metadata, Range, ReadAt, WriteAt};
+use crate::{borrow_streamer::BorrowStreamer, Advice, Array, Metadata, ReadAt, WriteAt};
 #[cfg(feature = "io-streams")]
 use io_streams::StreamReader;
 use std::{
@@ -7,7 +7,7 @@ use std::{
     io::{self, IoSlice, IoSliceMut, Read},
 };
 
-impl Range for [u8] {
+impl Array for [u8] {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         Ok(Metadata {
@@ -164,7 +164,7 @@ impl WriteAt for [u8] {
     }
 }
 
-impl Range for Vec<u8> {
+impl Array for Vec<u8> {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         self.as_slice().metadata()

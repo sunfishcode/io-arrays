@@ -6,25 +6,25 @@ use std::{
 use system_interface::io::Peek;
 
 /// A [`Read`]/[`Write`]/[`Peek`] implementation that streams through a
-/// [`Range`] that it owns.
+/// [`Array`] that it owns.
 ///
 /// In POSIX, `dup` produces a new file descriptor which shares a file
 /// description with the original file descriptor, and the file
 /// description includes the current position. In order to have independent
 /// streams through a file, we track our own current position.
-pub(crate) struct OwnedStreamer<Range> {
-    inner: Range,
+pub(crate) struct OwnedStreamer<Array> {
+    inner: Array,
     pos: u64,
 }
 
-impl<Range> OwnedStreamer<Range> {
+impl<Array> OwnedStreamer<Array> {
     #[inline]
-    pub(crate) fn new(inner: Range, pos: u64) -> Self {
+    pub(crate) fn new(inner: Array, pos: u64) -> Self {
         Self { inner, pos }
     }
 }
 
-impl<Range: ReadAt> Read for OwnedStreamer<Range> {
+impl<Array: ReadAt> Read for OwnedStreamer<Array> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let _new_pos = self
@@ -77,14 +77,14 @@ impl<Range: ReadAt> Read for OwnedStreamer<Range> {
     }
 }
 
-impl<Range: ReadAt> Peek for OwnedStreamer<Range> {
+impl<Array: ReadAt> Peek for OwnedStreamer<Array> {
     #[inline]
     fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read_at(buf, self.pos)
     }
 }
 
-impl<Range: WriteAt> Write for OwnedStreamer<Range> {
+impl<Array: WriteAt> Write for OwnedStreamer<Array> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let _new_pos = self

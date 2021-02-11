@@ -24,7 +24,7 @@ use {
     system_interface::fs::FileIoExt,
 };
 
-/// Implement [`crate::Range::metadata`].
+/// Implement [`crate::Array::metadata`].
 #[inline]
 pub fn metadata<Filelike: AsUnsafeFile>(filelike: &Filelike) -> io::Result<Metadata> {
     filelike.as_file_view().metadata().map(|meta| {
