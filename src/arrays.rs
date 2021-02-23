@@ -5,14 +5,17 @@ use io_streams::StreamReader;
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(target_os = "wasi")]
 use std::os::wasi::io::{AsRawFd, RawFd};
-#[cfg(windows)]
-use std::os::windows::io::{AsRawHandle, RawHandle};
 use std::{
     fs,
     io::{self, IoSlice, IoSliceMut, Read, Seek, Write},
 };
 use system_interface::fs::FileIoExt;
-use unsafe_io::{AsUnsafeFile, FromUnsafeFile, IntoUnsafeFile, UnsafeFile};
+use unsafe_io::{FromUnsafeFile, IntoUnsafeFile, OwnsRaw, UnsafeFile};
+#[cfg(windows)]
+use {
+    std::os::windows::io::{AsRawHandle, RawHandle},
+    unsafe_io::os::windows::{AsRawHandleOrSocket, RawHandleOrSocket},
+};
 
 /// Metadata information about an array.
 ///
@@ -189,10 +192,9 @@ impl ArrayReader {
     #[inline]
     pub fn bytes(bytes: &[u8]) -> io::Result<Self> {
         let unsafe_file = create_anonymous()?;
-        unsafe_file.as_file_view().write_all(bytes)?;
-        Ok(Self {
-            file: unsafe { fs::File::from_unsafe_file(unsafe_file) },
-        })
+        let file = unsafe { fs::File::from_unsafe_file(unsafe_file) };
+        file.write_all(bytes)?;
+        Ok(Self { file })
     }
 }
 
@@ -821,6 +823,14 @@ impl AsRawHandle for ArrayReader {
     }
 }
 
+#[cfg(windows)]
+impl AsRawHandleOrSocket for ArrayReader {
+    #[inline]
+    fn as_raw_handle_or_socket(&self) -> RawHandleOrSocket {
+        self.file.as_raw_handle_or_socket()
+    }
+}
+
 #[cfg(not(windows))]
 impl AsRawFd for ArrayWriter {
     #[inline]
@@ -837,6 +847,14 @@ impl AsRawHandle for ArrayWriter {
     }
 }
 
+#[cfg(windows)]
+impl AsRawHandleOrSocket for ArrayWriter {
+    #[inline]
+    fn as_raw_handle_or_socket(&self) -> RawHandleOrSocket {
+        self.file.as_raw_handle_or_socket()
+    }
+}
+
 #[cfg(not(windows))]
 impl AsRawFd for ArrayEditor {
     #[inline]
@@ -850,6 +868,14 @@ impl AsRawHandle for ArrayEditor {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()
+    }
+}
+
+#[cfg(windows)]
+impl AsRawHandleOrSocket for ArrayEditor {
+    #[inline]
+    fn as_raw_handle_or_socket(&self) -> RawHandleOrSocket {
+        self.file.as_raw_handle_or_socket()
     }
 }
 
