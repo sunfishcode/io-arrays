@@ -18,13 +18,13 @@ async-std = { version = "1.8.0", optional = true }
 cap-fs-ext = "0.13.0"
 cap-std = { version = "0.13.0", optional = true }
 cap-async-std = { version = "0.13.0", optional = true }
-io-streams = { version = "0.1.0", optional = true }
-system-interface = "0.6.0"
-unsafe-io = { version = "0.3.0" }
+io-streams = { version = "0.2.1", optional = true }
+system-interface = "0.6.2"
+unsafe-io = { version = "0.5.1" }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
 page_size = "0.4.2"
-unsafe-io = { version = "0.3.0", features = ["os_pipe"] }
+unsafe-io = { version = "0.5.1", features = ["os_pipe"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "linux")))'.dependencies]
 tempfile = "3.2.0"
@@ -34,7 +34,7 @@ libc = "0.2.81"
 posish = "0.5.6"
 
 [target.'cfg(windows)'.dependencies]
-winx = "0.22.0"
+winx = "0.23.0"
 
 [dev-dependencies]
 anyhow = "1.0.38"

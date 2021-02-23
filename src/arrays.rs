@@ -78,9 +78,10 @@ pub trait ReadAt: Array {
     /// Reads the exact number of byte required to fill `buf` from the given
     /// offset.
     ///
-    /// This is similar to [`std::os::unix::fs::FileExt::read_exact_at`], except
-    /// it takes `self` by immutable reference since the entire side effect is
-    /// I/O, and it's supported on non-Unix platforms including Windows.
+    /// This is similar to [`std::os::unix::fs::FileExt::read_exact_at`],
+    /// except it takes `self` by immutable reference since the entire side
+    /// effect is I/O, and it's supported on non-Unix platforms including
+    /// Windows.
     ///
     /// [`std::os::unix::fs::FileExt::read_exact_at`]: https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html#tymethod.read_exact_at
     fn read_exact_at(&self, buf: &mut [u8], offset: u64) -> io::Result<()>;
@@ -91,7 +92,8 @@ pub trait ReadAt: Array {
     /// Is to `read_exact_vectored` what `read_exact_at` is to `read_exact`.
     fn read_exact_vectored_at(&self, bufs: &mut [IoSliceMut], offset: u64) -> io::Result<()>;
 
-    /// Determines if `Self` has an efficient `read_vectored_at` implementation.
+    /// Determines if `Self` has an efficient `read_vectored_at`
+    /// implementation.
     fn is_read_vectored_at(&self) -> bool;
 
     /// Create a `StreamReader` which reads from the array at the given offset.
@@ -128,7 +130,8 @@ pub trait WriteAt: Array {
     /// Is to `write_all_vectored` what `write_all_at` is to `write_all`.
     fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()>;
 
-    /// Determines if `Self` has an efficient `write_vectored_at` implementation.
+    /// Determines if `Self` has an efficient `write_vectored_at`
+    /// implementation.
     fn is_write_vectored_at(&self) -> bool;
 
     /// Copy `len` bytes from `input` at `input_offset` to `self` at `offset`.
@@ -849,6 +852,15 @@ impl AsRawHandle for ArrayEditor {
         self.file.as_raw_handle()
     }
 }
+
+// Safety: ArrayReader owns its handle.
+unsafe impl OwnsRaw for ArrayReader {}
+
+// Safety: ArrayWriter owns its handle.
+unsafe impl OwnsRaw for ArrayWriter {}
+
+// Safety: ArrayEditor owns its handle.
+unsafe impl OwnsRaw for ArrayEditor {}
 
 // On Linux, use `memfd_create`.
 #[cfg(any(target_os = "android", target_os = "linux"))]
