@@ -899,7 +899,7 @@ fn create_anonymous() -> io::Result<UnsafeFile> {
     if fd == -1 {
         return Err(io::Error::last_os_error());
     }
-    Ok(UnsafeFile::from_raw_fd(fd))
+    Ok(UnsafeFile::unowned_from_raw_fd(fd))
 }
 
 // Otherwise, use a temporary file.
