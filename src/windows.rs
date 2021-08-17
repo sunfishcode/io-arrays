@@ -1,5 +1,5 @@
 //! Windows implementations of [`ReadAt`] and [`WriteAt`] functions for
-//! file-like types which implement [`AsUnsafeFile`] on Windows.
+//! file-like types which implement [`AsFilelike`] on Windows.
 //!
 //! These can use `seek_read`/`seek_write` because the file's current position
 //! is not exposed.
@@ -8,13 +8,14 @@
 //! [`WriteAt`]: crate::WriteAt
 
 use crate::Metadata;
+use io_lifetimes::AsFilelike;
 use std::{
     convert::TryInto,
+    fs::File,
     io::{self, IoSlice, IoSliceMut},
     os::windows::fs::FileExt,
     slice,
 };
-use unsafe_io::AsUnsafeFile;
 #[cfg(feature = "io-streams")]
 use {
     crate::owned_streamer::OwnedStreamer,
@@ -26,8 +27,8 @@ use {
 
 /// Implement [`crate::Array::metadata`].
 #[inline]
-pub fn metadata<Filelike: AsUnsafeFile>(filelike: &Filelike) -> io::Result<Metadata> {
-    filelike.as_file_view().metadata().map(|meta| {
+pub fn metadata<'a, Filelike: AsFilelike>(filelike: &Filelike) -> io::Result<Metadata> {
+    filelike.as_filelike_view::<File>().metadata().map(|meta| {
         Metadata {
             len: meta.len(),
 
@@ -40,16 +41,16 @@ pub fn metadata<Filelike: AsUnsafeFile>(filelike: &Filelike) -> io::Result<Metad
 
 /// Implement [`crate::ReadAt::read_at`].
 #[inline]
-pub fn read_at<Filelike: AsUnsafeFile>(
+pub fn read_at<'a, Filelike: AsFilelike>(
     filelike: &Filelike,
     buf: &mut [u8],
     offset: u64,
 ) -> io::Result<usize> {
-    filelike.as_file_view().seek_read(buf, offset)
+    filelike.as_filelike_view::<File>().seek_read(buf, offset)
 }
 
 /// Implement [`crate::ReadAt::read_exact_at`].
-pub fn read_exact_at<Filelike: AsUnsafeFile>(
+pub fn read_exact_at<Filelike: AsFilelike>(
     filelike: &Filelike,
     mut buf: &mut [u8],
     mut offset: u64,
@@ -78,7 +79,7 @@ pub fn read_exact_at<Filelike: AsUnsafeFile>(
 }
 
 /// Implement [`crate::ReadAt::read_vectored_at`].
-pub fn read_vectored_at<Filelike: AsUnsafeFile>(
+pub fn read_vectored_at<'a, Filelike: AsFilelike>(
     filelike: &Filelike,
     bufs: &mut [IoSliceMut],
     offset: u64,
@@ -91,7 +92,7 @@ pub fn read_vectored_at<Filelike: AsUnsafeFile>(
 }
 
 /// Implement [`crate::ReadAt::read_exact_vectored_at`].
-pub fn read_exact_vectored_at<Filelike: AsUnsafeFile>(
+pub fn read_exact_vectored_at<'a, Filelike: AsFilelike>(
     filelike: &Filelike,
     mut bufs: &mut [IoSliceMut],
     mut offset: u64,
@@ -113,20 +114,20 @@ pub fn read_exact_vectored_at<Filelike: AsUnsafeFile>(
 
 /// Implement [`crate::ReadAt::is_read_vectored_at`].
 #[inline]
-pub fn is_read_vectored_at<Filelike: AsUnsafeFile>(_filelike: &Filelike) -> bool {
+pub fn is_read_vectored_at<'a, Filelike: AsFilelike>(_filelike: &Filelike) -> bool {
     false
 }
 
 /// Implement [`crate::ReadAt::read_via_stream_at`].
 #[cfg(feature = "io-streams")]
-pub fn read_via_stream_at<Filelike: AsUnsafeFile>(
+pub fn read_via_stream_at<'a, Filelike: AsFilelike>(
     filelike: &Filelike,
     offset: u64,
 ) -> io::Result<StreamReader> {
     // On operating systems where we can do so, reopen the file so that we
     // get an independent current position.
     if let Ok(file) = filelike
-        .as_file_view()
+        .as_filelike_view::<File>()
         .reopen(OpenOptions::new().read(true))
     {
         if offset != 0 {
@@ -137,23 +138,23 @@ pub fn read_via_stream_at<Filelike: AsUnsafeFile>(
 
     // Otherwise, manually stream the file.
     StreamReader::piped_thread(Box::new(OwnedStreamer::new(
-        filelike.as_file_view().try_clone()?,
+        filelike.as_filelike_view::<File>().try_clone()?,
         offset,
     )))
 }
 
 /// Implement [`crate::WriteAt::write_at`].
 #[inline]
-pub fn write_at<Filelike: AsUnsafeFile>(
+pub fn write_at<'a, Filelike: AsFilelike>(
     filelike: &Filelike,
     buf: &[u8],
     offset: u64,
 ) -> io::Result<usize> {
-    filelike.as_file_view().seek_write(buf, offset)
+    filelike.as_filelike_view::<File>().seek_write(buf, offset)
 }
 
 /// Implement [`crate::WriteAt::write_all_at`].
-pub fn write_all_at<Filelike: AsUnsafeFile>(
+pub fn write_all_at<'a, Filelike: AsFilelike>(
     filelike: &Filelike,
     mut buf: &[u8],
     mut offset: u64,
@@ -176,7 +177,7 @@ pub fn write_all_at<Filelike: AsUnsafeFile>(
 }
 
 /// Implement [`crate::WriteAt::write_vectored_at`].
-pub fn write_vectored_at<Filelike: AsUnsafeFile>(
+pub fn write_vectored_at<'a, Filelike: AsFilelike>(
     filelike: &Filelike,
     bufs: &[IoSlice],
     offset: u64,
@@ -189,7 +190,7 @@ pub fn write_vectored_at<Filelike: AsUnsafeFile>(
 }
 
 /// Implement [`crate::WriteAt::write_all_vectored_at`].
-pub fn write_all_vectored_at<Filelike: AsUnsafeFile>(
+pub fn write_all_vectored_at<'a, Filelike: AsFilelike>(
     filelike: &Filelike,
     mut bufs: &mut [IoSlice],
     mut offset: u64,
@@ -211,7 +212,7 @@ pub fn write_all_vectored_at<Filelike: AsUnsafeFile>(
 
 /// Implement [`crate::WriteAt::is_write_vectored_at`].
 #[inline]
-pub fn is_write_vectored_at<Filelike: AsUnsafeFile>(_filelike: &Filelike) -> bool {
+pub fn is_write_vectored_at<'a, Filelike: AsFilelike>(_filelike: &Filelike) -> bool {
     false
 }
 

@@ -1,4 +1,9 @@
 use crate::{filelike, Advice};
+#[cfg(not(any(target_os = "android", target_os = "linux")))]
+use io_lifetimes::OwnedFilelike;
+#[cfg(not(windows))]
+use io_lifetimes::{AsFd, BorrowedFd};
+use io_lifetimes::{FromFilelike, IntoFilelike};
 #[cfg(feature = "io-streams")]
 use io_streams::StreamReader;
 #[cfg(unix)]
@@ -10,9 +15,10 @@ use std::{
     io::{self, IoSlice, IoSliceMut, Read, Seek, Write},
 };
 use system_interface::fs::FileIoExt;
-use unsafe_io::{FromUnsafeFile, IntoUnsafeFile, OwnsRaw, UnsafeFile};
+use unsafe_io::OwnsRaw;
 #[cfg(windows)]
 use {
+    io_lifetimes::{AsHandle, BorrowedHandle},
     std::os::windows::io::{AsRawHandle, RawHandle},
     unsafe_io::os::windows::{AsRawHandleOrSocket, RawHandleOrSocket},
 };
@@ -181,9 +187,9 @@ impl ArrayReader {
     /// Convert a `File` into a `ArrayReader`.
     #[inline]
     #[must_use]
-    pub fn file<Filelike: IntoUnsafeFile + Read + Seek>(filelike: Filelike) -> Self {
+    pub fn file<Filelike: IntoFilelike + Read + Seek>(filelike: Filelike) -> Self {
         Self {
-            file: fs::File::from_filelike(filelike),
+            file: fs::File::from_into_filelike(filelike),
         }
     }
 
@@ -191,8 +197,8 @@ impl ArrayReader {
     /// in the manner of an array.
     #[inline]
     pub fn bytes(bytes: &[u8]) -> io::Result<Self> {
-        let unsafe_file = create_anonymous()?;
-        let file = unsafe { fs::File::from_unsafe_file(unsafe_file) };
+        let owned = create_anonymous()?;
+        let file = fs::File::from_into_filelike(owned);
         file.write_all(bytes)?;
         Ok(Self { file })
     }
@@ -206,8 +212,8 @@ impl ArrayWriter {
     /// [append mode]: https://doc.rust-lang.org/stable/std/fs/struct.OpenOptions.html#method.append
     #[inline]
     #[must_use]
-    pub fn file<Filelike: IntoUnsafeFile + Write + Seek>(filelike: Filelike) -> Self {
-        Self::_file(fs::File::from_filelike(filelike))
+    pub fn file<Filelike: IntoFilelike + Write + Seek>(filelike: Filelike) -> Self {
+        Self::_file(fs::File::from_into_filelike(filelike))
     }
 
     #[inline]
@@ -217,16 +223,16 @@ impl ArrayWriter {
         #[cfg(not(windows))]
         {
             assert!(
-                !posish::fs::getfl(&file)
+                !rsix::fs::fcntl_getfl(&file)
                     .unwrap()
-                    .contains(posish::fs::OFlags::APPEND),
+                    .contains(rsix::fs::OFlags::APPEND),
                 "ArrayWriter doesn't support files opened with O_APPEND"
             );
         }
         #[cfg(windows)]
         {
             assert!(
-                (winx::file::query_access_information(file.as_raw_handle()).unwrap()
+                (winx::file::query_access_information(file.as_handle()).unwrap()
                     & winx::file::AccessMode::FILE_APPEND_DATA)
                     == winx::file::AccessMode::FILE_APPEND_DATA,
                 "ArrayWriter doesn't support files opened with FILE_APPEND_DATA"
@@ -241,9 +247,9 @@ impl ArrayEditor {
     /// Convert a `File` into a `ArrayEditor`.
     #[inline]
     #[must_use]
-    pub fn file<Filelike: IntoUnsafeFile + Read + Write + Seek>(filelike: Filelike) -> Self {
+    pub fn file<Filelike: IntoFilelike + Read + Write + Seek>(filelike: Filelike) -> Self {
         Self {
-            file: fs::File::from_filelike(filelike),
+            file: fs::File::from_into_filelike(filelike),
         }
     }
 
@@ -251,9 +257,9 @@ impl ArrayEditor {
     /// manner of an array.
     #[inline]
     pub fn anonymous() -> io::Result<Self> {
-        let unsafe_file = create_anonymous()?;
+        let owned = create_anonymous()?;
         Ok(Self {
-            file: unsafe { fs::File::from_unsafe_file(unsafe_file) },
+            file: fs::File::from_into_filelike(owned),
         })
     }
 }
@@ -363,22 +369,22 @@ impl ReadAt for ArrayEditor {
 impl WriteAt for ArrayWriter {
     #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
-        filelike::write_at(self, buf, offset)
+        filelike::write_at(&*self, buf, offset)
     }
 
     #[inline]
     fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
-        filelike::write_all_at(self, buf, offset)
+        filelike::write_all_at(&*self, buf, offset)
     }
 
     #[inline]
     fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
-        filelike::write_vectored_at(self, bufs, offset)
+        filelike::write_vectored_at(&*self, bufs, offset)
     }
 
     #[inline]
     fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
-        filelike::write_all_vectored_at(self, bufs, offset)
+        filelike::write_all_vectored_at(&*self, bufs, offset)
     }
 
     #[inline]
@@ -394,34 +400,34 @@ impl WriteAt for ArrayWriter {
         input_offset: u64,
         len: u64,
     ) -> io::Result<u64> {
-        filelike::copy_from(self, offset, input, input_offset, len)
+        filelike::copy_from(&*self, offset, input, input_offset, len)
     }
 
     #[inline]
     fn set_len(&mut self, size: u64) -> io::Result<()> {
-        filelike::set_len(self, size)
+        filelike::set_len(&*self, size)
     }
 }
 
 impl WriteAt for ArrayEditor {
     #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
-        filelike::write_at(self, buf, offset)
+        filelike::write_at(&*self, buf, offset)
     }
 
     #[inline]
     fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
-        filelike::write_all_at(self, buf, offset)
+        filelike::write_all_at(&*self, buf, offset)
     }
 
     #[inline]
     fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
-        filelike::write_vectored_at(self, bufs, offset)
+        filelike::write_vectored_at(&*self, bufs, offset)
     }
 
     #[inline]
     fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
-        filelike::write_all_vectored_at(self, bufs, offset)
+        filelike::write_all_vectored_at(&*self, bufs, offset)
     }
 
     #[inline]
@@ -437,12 +443,12 @@ impl WriteAt for ArrayEditor {
         input_offset: u64,
         len: u64,
     ) -> io::Result<u64> {
-        filelike::copy_from(self, offset, input, input_offset, len)
+        filelike::copy_from(&*self, offset, input, input_offset, len)
     }
 
     #[inline]
     fn set_len(&mut self, size: u64) -> io::Result<()> {
-        filelike::set_len(self, size)
+        filelike::set_len(&*self, size)
     }
 }
 
@@ -494,22 +500,22 @@ impl ReadAt for fs::File {
 impl WriteAt for fs::File {
     #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
-        filelike::write_at(self, buf, offset)
+        filelike::write_at(&*self, buf, offset)
     }
 
     #[inline]
     fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
-        filelike::write_all_at(self, buf, offset)
+        filelike::write_all_at(&*self, buf, offset)
     }
 
     #[inline]
     fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
-        filelike::write_vectored_at(self, bufs, offset)
+        filelike::write_vectored_at(&*self, bufs, offset)
     }
 
     #[inline]
     fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
-        filelike::write_all_vectored_at(self, bufs, offset)
+        filelike::write_all_vectored_at(&*self, bufs, offset)
     }
 
     #[inline]
@@ -525,12 +531,12 @@ impl WriteAt for fs::File {
         input_offset: u64,
         len: u64,
     ) -> io::Result<u64> {
-        filelike::copy_from(self, offset, input, input_offset, len)
+        filelike::copy_from(&*self, offset, input, input_offset, len)
     }
 
     #[inline]
     fn set_len(&mut self, size: u64) -> io::Result<()> {
-        filelike::set_len(self, size)
+        filelike::set_len(&*self, size)
     }
 }
 
@@ -815,11 +821,27 @@ impl AsRawFd for ArrayReader {
     }
 }
 
+#[cfg(not(windows))]
+impl AsFd for ArrayReader {
+    #[inline]
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.file.as_fd()
+    }
+}
+
 #[cfg(windows)]
 impl AsRawHandle for ArrayReader {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()
+    }
+}
+
+#[cfg(windows)]
+impl AsHandle for ArrayReader {
+    #[inline]
+    fn as_handle(&self) -> BorrowedHandle<'_> {
+        self.file.as_handle()
     }
 }
 
@@ -839,11 +861,27 @@ impl AsRawFd for ArrayWriter {
     }
 }
 
+#[cfg(not(windows))]
+impl AsFd for ArrayWriter {
+    #[inline]
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.file.as_fd()
+    }
+}
+
 #[cfg(windows)]
 impl AsRawHandle for ArrayWriter {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()
+    }
+}
+
+#[cfg(windows)]
+impl AsHandle for ArrayWriter {
+    #[inline]
+    fn as_handle(&self) -> BorrowedHandle<'_> {
+        self.file.as_handle()
     }
 }
 
@@ -863,11 +901,27 @@ impl AsRawFd for ArrayEditor {
     }
 }
 
+#[cfg(not(windows))]
+impl AsFd for ArrayEditor {
+    #[inline]
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.file.as_fd()
+    }
+}
+
 #[cfg(windows)]
 impl AsRawHandle for ArrayEditor {
     #[inline]
     fn as_raw_handle(&self) -> RawHandle {
         self.file.as_raw_handle()
+    }
+}
+
+#[cfg(windows)]
+impl AsHandle for ArrayEditor {
+    #[inline]
+    fn as_handle(&self) -> BorrowedHandle<'_> {
+        self.file.as_handle()
     }
 }
 
@@ -890,26 +944,15 @@ unsafe impl OwnsRaw for ArrayEditor {}
 
 // On Linux, use `memfd_create`.
 #[cfg(any(target_os = "android", target_os = "linux"))]
-fn create_anonymous() -> io::Result<UnsafeFile> {
-    let flags = libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING;
-    let name = b"io_arrays anonymous file\0"
-        .as_ptr()
-        .cast::<libc::c_char>();
-    let fd = unsafe { memfd_create(name, flags) };
-    if fd == -1 {
-        return Err(io::Error::last_os_error());
-    }
-    Ok(UnsafeFile::unowned_from_raw_fd(fd))
+fn create_anonymous() -> io::Result<rsix::io::OwnedFd> {
+    let flags = rsix::fs::MemfdFlags::CLOEXEC | rsix::fs::MemfdFlags::ALLOW_SEALING;
+    let name = cstr::cstr!("io_arrays anonymous file");
+    Ok(rsix::fs::memfd_create(name, flags)?)
 }
 
 // Otherwise, use a temporary file.
 #[cfg(not(any(target_os = "android", target_os = "linux")))]
-fn create_anonymous() -> io::Result<UnsafeFile> {
+fn create_anonymous() -> io::Result<OwnedFilelike> {
     let file = tempfile::tempfile()?;
-    Ok(file.into_unsafe_file())
-}
-
-#[cfg(any(target_os = "android", target_os = "linux"))]
-unsafe fn memfd_create(name: *const libc::c_char, flags: libc::c_uint) -> libc::c_int {
-    libc::syscall(libc::SYS_memfd_create, name, flags) as libc::c_int
+    Ok(file.into_filelike())
 }

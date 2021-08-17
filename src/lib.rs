@@ -25,7 +25,7 @@ mod files;
 #[cfg(feature = "io-streams")]
 mod owned_streamer;
 #[cfg(not(windows))]
-mod posish;
+mod rsix;
 mod slice;
 #[cfg(windows)]
 mod windows;
@@ -47,9 +47,9 @@ pub mod filelike {
     // doesn't expose the current position.
     pub use crate::files::{advise, copy_from, set_len};
     #[cfg(all(not(windows), feature = "io-streams"))]
-    pub use crate::posish::read_via_stream_at;
+    pub use crate::rsix::read_via_stream_at;
     #[cfg(not(windows))]
-    pub use crate::posish::{
+    pub use crate::rsix::{
         is_read_vectored_at, is_write_vectored_at, metadata, read_at, read_exact_at,
         read_exact_vectored_at, read_vectored_at, write_all_at, write_all_vectored_at, write_at,
         write_vectored_at,

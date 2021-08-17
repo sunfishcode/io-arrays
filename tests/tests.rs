@@ -2,13 +2,13 @@
 #![cfg_attr(write_all_vectored, feature(write_all_vectored))]
 
 use cap_std::fs::OpenOptions;
-use cap_tempfile::{tempdir, TempDir};
+use cap_tempfile::{ambient_authority, tempdir, TempDir};
 use io_arrays::{Array, ArrayEditor, ArrayReader, ArrayWriter, ReadAt, WriteAt};
 use std::io::{Read, Write};
 
 #[allow(unused)]
 fn tmpdir() -> TempDir {
-    unsafe { tempdir().expect("expected to be able to create a temporary directory") }
+    tempdir(ambient_authority()).expect("expected to be able to create a temporary directory")
 }
 
 #[test]
