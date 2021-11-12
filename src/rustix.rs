@@ -6,14 +6,12 @@
 
 use crate::Metadata;
 use io_lifetimes::AsFilelike;
+use std::fs::File;
+use std::io::{self, IoSlice, IoSliceMut};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "wasi")]
 use std::os::unix::fs::MetadataExt;
-use std::{
-    fs::File,
-    io::{self, IoSlice, IoSliceMut},
-};
 use system_interface::fs::FileIoExt;
 #[cfg(feature = "io-streams")]
 use {

@@ -1,11 +1,10 @@
-use crate::{borrow_streamer::BorrowStreamer, Advice, Array, Metadata, ReadAt, WriteAt};
+use crate::borrow_streamer::BorrowStreamer;
+use crate::{Advice, Array, Metadata, ReadAt, WriteAt};
 #[cfg(feature = "io-streams")]
 use io_streams::StreamReader;
-use std::{
-    cmp::min,
-    convert::TryInto,
-    io::{self, IoSlice, IoSliceMut, Read},
-};
+use std::cmp::min;
+use std::convert::TryInto;
+use std::io::{self, IoSlice, IoSliceMut, Read};
 
 impl Array for [u8] {
     #[inline]

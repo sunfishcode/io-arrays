@@ -6,20 +6,18 @@ use io_lifetimes::{AsFd, BorrowedFd};
 use io_lifetimes::{FromFilelike, IntoFilelike};
 #[cfg(feature = "io-streams")]
 use io_streams::StreamReader;
+use std::fs;
+use std::io::{self, IoSlice, IoSliceMut, Read, Seek, Write};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(target_os = "wasi")]
 use std::os::wasi::io::{AsRawFd, RawFd};
-use std::{
-    fs,
-    io::{self, IoSlice, IoSliceMut, Read, Seek, Write},
-};
 use system_interface::fs::FileIoExt;
 #[cfg(windows)]
 use {
+    io_extras::os::windows::{AsRawHandleOrSocket, RawHandleOrSocket},
     io_lifetimes::{AsHandle, BorrowedHandle},
     std::os::windows::io::{AsRawHandle, RawHandle},
-    io_extras::os::windows::{AsRawHandleOrSocket, RawHandleOrSocket},
 };
 
 /// Metadata information about an array.

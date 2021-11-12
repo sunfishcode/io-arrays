@@ -9,13 +9,11 @@
 
 use crate::Metadata;
 use io_lifetimes::AsFilelike;
-use std::{
-    convert::TryInto,
-    fs::File,
-    io::{self, IoSlice, IoSliceMut},
-    os::windows::fs::FileExt,
-    slice,
-};
+use std::convert::TryInto;
+use std::fs::File;
+use std::io::{self, IoSlice, IoSliceMut};
+use std::os::windows::fs::FileExt;
+use std::slice;
 #[cfg(feature = "io-streams")]
 use {
     crate::owned_streamer::OwnedStreamer,

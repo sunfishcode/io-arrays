@@ -4,15 +4,11 @@
 //!
 //! [`WriteAt`]: crate::WriteAt
 
-use crate::{
-    borrow_streamer::{BorrowStreamer, BorrowStreamerMut},
-    Advice, ReadAt,
-};
+use crate::borrow_streamer::{BorrowStreamer, BorrowStreamerMut};
+use crate::{Advice, ReadAt};
 use io_lifetimes::AsFilelike;
-use std::{
-    fs::File,
-    io::{self, copy, Read},
-};
+use std::fs::File;
+use std::io::{self, copy, Read};
 use system_interface::fs::FileIoExt;
 
 /// Implement [`crate::Array::advise`].

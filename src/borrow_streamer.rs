@@ -1,8 +1,6 @@
 use crate::{ReadAt, WriteAt};
-use std::{
-    fmt::Arguments,
-    io::{self, IoSlice, IoSliceMut, Read, Write},
-};
+use std::fmt::Arguments;
+use std::io::{self, IoSlice, IoSliceMut, Read, Write};
 use system_interface::io::Peek;
 
 /// A [`Read`]/[`Peek`] implementation that streams through a [`Array`] that it
