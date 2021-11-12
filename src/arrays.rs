@@ -15,12 +15,11 @@ use std::{
     io::{self, IoSlice, IoSliceMut, Read, Seek, Write},
 };
 use system_interface::fs::FileIoExt;
-use unsafe_io::OwnsRaw;
 #[cfg(windows)]
 use {
     io_lifetimes::{AsHandle, BorrowedHandle},
     std::os::windows::io::{AsRawHandle, RawHandle},
-    unsafe_io::os::windows::{AsRawHandleOrSocket, RawHandleOrSocket},
+    io_extras::os::windows::{AsRawHandleOrSocket, RawHandleOrSocket},
 };
 
 /// Metadata information about an array.
@@ -223,9 +222,9 @@ impl ArrayWriter {
         #[cfg(not(windows))]
         {
             assert!(
-                !rsix::fs::fcntl_getfl(&file)
+                !rustix::fs::fcntl_getfl(&file)
                     .unwrap()
-                    .contains(rsix::fs::OFlags::APPEND),
+                    .contains(rustix::fs::OFlags::APPEND),
                 "ArrayWriter doesn't support files opened with O_APPEND"
             );
         }
@@ -933,21 +932,12 @@ impl AsRawHandleOrSocket for ArrayEditor {
     }
 }
 
-// Safety: ArrayReader owns its handle.
-unsafe impl OwnsRaw for ArrayReader {}
-
-// Safety: ArrayWriter owns its handle.
-unsafe impl OwnsRaw for ArrayWriter {}
-
-// Safety: ArrayEditor owns its handle.
-unsafe impl OwnsRaw for ArrayEditor {}
-
 // On Linux, use `memfd_create`.
 #[cfg(any(target_os = "android", target_os = "linux"))]
-fn create_anonymous() -> io::Result<rsix::io::OwnedFd> {
-    let flags = rsix::fs::MemfdFlags::CLOEXEC | rsix::fs::MemfdFlags::ALLOW_SEALING;
+fn create_anonymous() -> io::Result<rustix::io::OwnedFd> {
+    let flags = rustix::fs::MemfdFlags::CLOEXEC | rustix::fs::MemfdFlags::ALLOW_SEALING;
     let name = cstr::cstr!("io_arrays anonymous file");
-    Ok(rsix::fs::memfd_create(name, flags)?)
+    Ok(rustix::fs::memfd_create(name, flags)?)
 }
 
 // Otherwise, use a temporary file.
