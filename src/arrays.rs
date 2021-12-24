@@ -934,7 +934,7 @@ impl AsRawHandleOrSocket for ArrayEditor {
 #[cfg(any(target_os = "android", target_os = "linux"))]
 fn create_anonymous() -> io::Result<rustix::io::OwnedFd> {
     let flags = rustix::fs::MemfdFlags::CLOEXEC | rustix::fs::MemfdFlags::ALLOW_SEALING;
-    let name = cstr::cstr!("io_arrays anonymous file");
+    let name = rustix::zstr!("io_arrays anonymous file");
     Ok(rustix::fs::memfd_create(name, flags)?)
 }
 
