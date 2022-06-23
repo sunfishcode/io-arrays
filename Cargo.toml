@@ -30,6 +30,7 @@ tempfile = "3.2.0"
 rustix = { version = "0.35.6", features = ["fs", "param"] }
 
 [target.'cfg(windows)'.dependencies]
+page_size = "0.4.2"
 winx = "0.33.0"
 
 [dev-dependencies]
