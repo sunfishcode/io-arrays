@@ -273,6 +273,18 @@ impl Array for ArrayReader {
     }
 }
 
+impl Array for &ArrayReader {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
 impl Array for ArrayWriter {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
@@ -285,7 +297,31 @@ impl Array for ArrayWriter {
     }
 }
 
+impl Array for &ArrayWriter {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
 impl Array for ArrayEditor {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
+impl Array for &ArrayEditor {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -406,6 +442,49 @@ impl WriteAt for ArrayWriter {
     }
 }
 
+impl WriteAt for &ArrayWriter {
+    #[inline]
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(&*self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(&*self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(&*self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(&*self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(&*self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(&*self, size)
+    }
+}
+
 impl WriteAt for ArrayEditor {
     #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
@@ -449,7 +528,62 @@ impl WriteAt for ArrayEditor {
     }
 }
 
+impl WriteAt for &ArrayEditor {
+    #[inline]
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(&*self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(&*self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(&*self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(&*self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(&*self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(&*self, size)
+    }
+}
+
 impl Array for fs::File {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
+impl Array for &fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -537,8 +671,64 @@ impl WriteAt for fs::File {
     }
 }
 
+impl WriteAt for &fs::File {
+    #[inline]
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(&*self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(&*self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(&*self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(&*self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(&*self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(&*self, size)
+    }
+}
+
 #[cfg(feature = "cap-std")]
 impl Array for cap_std::fs::File {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
+#[cfg(feature = "cap-std")]
+impl Array for &cap_std::fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -628,8 +818,65 @@ impl WriteAt for cap_std::fs::File {
     }
 }
 
+#[cfg(feature = "cap-std")]
+impl WriteAt for &cap_std::fs::File {
+    #[inline]
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(self, size)
+    }
+}
+
 #[cfg(feature = "cap-async-std")]
 impl Array for cap_async_std::fs::File {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
+#[cfg(feature = "cap-async-std")]
+impl Array for &cap_async_std::fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -719,8 +966,65 @@ impl WriteAt for cap_async_std::fs::File {
     }
 }
 
+#[cfg(feature = "cap-async-std")]
+impl WriteAt for &cap_async_std::fs::File {
+    #[inline]
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(self, size)
+    }
+}
+
 #[cfg(feature = "async-std")]
 impl Array for async_std::fs::File {
+    #[inline]
+    fn metadata(&self) -> io::Result<Metadata> {
+        filelike::metadata(self)
+    }
+
+    #[inline]
+    fn advise(&self, offset: u64, len: u64, advice: Advice) -> io::Result<()> {
+        filelike::advise(self, offset, len, advice)
+    }
+}
+
+#[cfg(feature = "async-std")]
+impl Array for &async_std::fs::File {
     #[inline]
     fn metadata(&self) -> io::Result<Metadata> {
         filelike::metadata(self)
@@ -768,6 +1072,50 @@ impl ReadAt for async_std::fs::File {
 
 #[cfg(feature = "async-std")]
 impl WriteAt for async_std::fs::File {
+    #[inline]
+    fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        filelike::write_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_all_at(&mut self, buf: &[u8], offset: u64) -> io::Result<()> {
+        filelike::write_all_at(self, buf, offset)
+    }
+
+    #[inline]
+    fn write_vectored_at(&mut self, bufs: &[IoSlice], offset: u64) -> io::Result<usize> {
+        filelike::write_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn write_all_vectored_at(&mut self, bufs: &mut [IoSlice], offset: u64) -> io::Result<()> {
+        filelike::write_all_vectored_at(self, bufs, offset)
+    }
+
+    #[inline]
+    fn is_write_vectored_at(&self) -> bool {
+        filelike::is_write_vectored_at(self)
+    }
+
+    #[inline]
+    fn copy_from<R: ReadAt>(
+        &mut self,
+        offset: u64,
+        input: &R,
+        input_offset: u64,
+        len: u64,
+    ) -> io::Result<u64> {
+        filelike::copy_from(self, offset, input, input_offset, len)
+    }
+
+    #[inline]
+    fn set_len(&mut self, size: u64) -> io::Result<()> {
+        filelike::set_len(self, size)
+    }
+}
+
+#[cfg(feature = "async-std")]
+impl WriteAt for &async_std::fs::File {
     #[inline]
     fn write_at(&mut self, buf: &[u8], offset: u64) -> io::Result<usize> {
         filelike::write_at(self, buf, offset)
@@ -934,7 +1282,7 @@ impl AsRawHandleOrSocket for ArrayEditor {
 #[cfg(any(target_os = "android", target_os = "linux"))]
 fn create_anonymous() -> io::Result<rustix::io::OwnedFd> {
     let flags = rustix::fs::MemfdFlags::CLOEXEC | rustix::fs::MemfdFlags::ALLOW_SEALING;
-    let name = rustix::zstr!("io_arrays anonymous file");
+    let name = rustix::cstr!("io_arrays anonymous file");
     Ok(rustix::fs::memfd_create(name, flags)?)
 }
 

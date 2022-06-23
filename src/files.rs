@@ -31,8 +31,9 @@ pub fn copy_from<'f, Filelike: AsFilelike, R: ReadAt>(
     input_offset: u64,
     len: u64,
 ) -> io::Result<u64> {
-    let mut input_view = filelike.as_filelike_view::<File>();
-    let mut output_streamer = BorrowStreamerMut::new(&mut *input_view, offset);
+    let input_view = filelike.as_filelike_view::<File>();
+    let mut input_tmp = &*input_view;
+    let mut output_streamer = BorrowStreamerMut::new(&mut input_tmp, offset);
     let input_streamer = BorrowStreamer::new(input, input_offset);
     copy(&mut input_streamer.take(len), &mut output_streamer)
 }
