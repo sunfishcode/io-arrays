@@ -33,6 +33,9 @@ contain a single file descriptor (and implement [`AsRawFd`]), plus any
 resources needed to safely hold the file descriptor live. On Windows, they
 contain a single file handle (and implement [`AsRawHandle`]).
 
+Support for async-std is temporarily disabled until those crates contain the
+needed implementations of the I/O safety traits.
+
 [`ReadAt`]: https://docs.rs/io-arrays/latest/io_arrays/trait.ReadAt.html
 [`WriteAt`]: https://docs.rs/io-arrays/latest/io_arrays/trait.WriteAt.html
 [`EditAt`]: https://docs.rs/io-arrays/latest/io_arrays/trait.EditAt.html

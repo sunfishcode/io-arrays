@@ -12,7 +12,9 @@ use std::io::{self, IoSlice, IoSliceMut, Read, Seek, Write};
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(target_os = "wasi")]
 use std::os::wasi::io::{AsRawFd, RawFd};
+/*
 use system_interface::fs::FileIoExt;
+*/
 #[cfg(windows)]
 use {
     io_extras::os::windows::{AsRawHandleOrSocket, RawHandleOrSocket},
@@ -195,7 +197,7 @@ impl ArrayReader {
     #[inline]
     pub fn bytes(bytes: &[u8]) -> io::Result<Self> {
         let owned = create_anonymous()?;
-        let file = fs::File::from_into_filelike(owned);
+        let mut file = fs::File::from_into_filelike(owned);
         file.write_all(bytes)?;
         Ok(Self { file })
     }
@@ -862,6 +864,7 @@ impl WriteAt for &cap_std::fs::File {
     }
 }
 
+/*
 #[cfg(feature = "cap-async-std")]
 impl Array for cap_async_std::fs::File {
     #[inline]
@@ -1157,6 +1160,7 @@ impl WriteAt for &async_std::fs::File {
         filelike::set_len(self, size)
     }
 }
+*/
 
 #[cfg(not(windows))]
 impl AsRawFd for ArrayReader {
@@ -1280,7 +1284,7 @@ impl AsRawHandleOrSocket for ArrayEditor {
 
 // On Linux, use `memfd_create`.
 #[cfg(any(target_os = "android", target_os = "linux"))]
-fn create_anonymous() -> io::Result<rustix::io::OwnedFd> {
+fn create_anonymous() -> io::Result<rustix::fd::OwnedFd> {
     let flags = rustix::fs::MemfdFlags::CLOEXEC | rustix::fs::MemfdFlags::ALLOW_SEALING;
     let name = rustix::cstr!("io_arrays anonymous file");
     Ok(rustix::fs::memfd_create(name, flags)?)
