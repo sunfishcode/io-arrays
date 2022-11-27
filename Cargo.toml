@@ -15,13 +15,13 @@ exclude = ["/.github"]
 cap-fs-ext = "1.0.0"
 cap-std = "1.0.0"
 #cap-async-std = { version = "1.0.0", optional = true }
-io-streams = { version = "0.13.0", optional = true }
-system-interface = "0.24.0"
-io-extras = { version = "0.16.0" }
+io-streams = { version = "0.14.0", optional = true }
+system-interface = "0.25.0"
+io-extras = { version = "0.17.0" }
 io-lifetimes = { version = "1.0.0", default-features = false }
 
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
-io-extras = { version = "0.16.0", features = ["os_pipe"] }
+io-extras = { version = "0.17.0", features = ["os_pipe"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "linux")))'.dependencies]
 tempfile = "3.2.0"
@@ -30,7 +30,7 @@ tempfile = "3.2.0"
 rustix = { version = "0.36.0", features = ["fs", "param"] }
 
 [target.'cfg(windows)'.dependencies]
-page_size = "0.4.2"
+page_size = "0.5.0"
 winx = "0.34.0"
 
 [dev-dependencies]
