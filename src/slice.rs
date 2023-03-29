@@ -11,14 +11,11 @@ impl Array for [u8] {
     fn metadata(&self) -> io::Result<Metadata> {
         Ok(Metadata {
             len: self.len().try_into().unwrap(),
-            #[cfg(not(any(windows, target_os = "wasi")))]
-            blksize: rustix::param::page_size() as u64,
-            #[cfg(windows)]
-            blksize: page_size::get().try_into().unwrap(),
-            // Hard-code the size here pending
-            // <https://github.com/Elzair/page_size_rs/pull/3>
-            #[cfg(target_os = "wasi")]
-            blksize: 65536,
+            // An array in memory doesn't have a natural "block size" in the
+            // way that filesystems do, so currently this is an arbitrarily
+            // chosen value. In the future this could be guided by performance
+            // measurements.
+            blksize: 4096,
         })
     }
 
@@ -33,14 +30,11 @@ impl Array for &mut [u8] {
     fn metadata(&self) -> io::Result<Metadata> {
         Ok(Metadata {
             len: self.len().try_into().unwrap(),
-            #[cfg(not(any(windows, target_os = "wasi")))]
-            blksize: rustix::param::page_size() as u64,
-            #[cfg(windows)]
-            blksize: page_size::get().try_into().unwrap(),
-            // Hard-code the size here pending
-            // <https://github.com/Elzair/page_size_rs/pull/3>
-            #[cfg(target_os = "wasi")]
-            blksize: 65536,
+            // An array in memory doesn't have a natural "block size" in the
+            // way that filesystems do, so currently this is an arbitrarily
+            // chosen value. In the future this could be guided by performance
+            // measurements.
+            blksize: 4096,
         })
     }
 
