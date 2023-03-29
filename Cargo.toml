@@ -27,11 +27,11 @@ io-extras = { version = "0.17.0", features = ["os_pipe"] }
 tempfile = "3.2.0"
 
 [target.'cfg(not(windows))'.dependencies]
-rustix = { version = "0.36.0", features = ["fs", "param"] }
+rustix = { version = "0.37.0", features = ["fs", "param"] }
 
 [target.'cfg(windows)'.dependencies]
 page_size = "0.5.0"
-winx = "0.34.0"
+winx = "0.35.0"
 
 [dev-dependencies]
 anyhow = "1.0.38"
