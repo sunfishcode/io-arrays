@@ -1,6 +1,6 @@
 [package]
 name = "io-arrays"
-version = "0.12.2"
+version = "0.12.3"
 description = "Random-access I/O"
 authors = ["Dan Gohman <dev@sunfishcode.online>"]
 edition = "2018"
