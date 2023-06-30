@@ -9,7 +9,6 @@
 
 use crate::Metadata;
 use io_lifetimes::AsFilelike;
-use std::convert::TryInto;
 use std::fs::File;
 use std::io::{self, IoSlice, IoSliceMut};
 use std::os::windows::fs::FileExt;
